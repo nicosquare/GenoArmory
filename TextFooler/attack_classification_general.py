@@ -4,7 +4,6 @@ import numpy as np
 import dataloader
 from train_classifier import Model
 
-# import criteria
 import random
 
 # import tensorflow as tf
@@ -13,8 +12,8 @@ import random
 import torch
 import torch.nn as nn
 
-from USE import USE_hyena, USE_DNABERT, USE_nt
-from NLI_infer_model import NLI_infer_BERT, NLI_infer_Hyena, NLI_infer_NT
+from USE import USE_hyena, USE_DNABERT, USE_nt, USE_og
+from NLI_infer_model import NLI_infer_BERT, NLI_infer_Hyena, NLI_infer_NT, NLI_infer_OG
 
 def get_tokenized_dna(sequence, tokenizer):
     tokens = tokenizer.tokenize(sequence)
@@ -368,9 +367,7 @@ def main():
         "--target_model",
         type=str,
         required=True,
-        choices=["nt", "bert", 'hyena'],
-        help="Target models for text classification: fasttext, charcnn, word level lstm "
-        "For NLI: InferSent, ESIM, bert-base-uncased",
+        choices=["nt", "bert", 'hyena', 'og'],
     )
     parser.add_argument(
         "--target_model_path",
@@ -503,6 +500,14 @@ def main():
         )
         # build the semantic similarity module
         use = USE_nt(model.tokenizer, model.model)
+    elif args.target_model == "og":
+        model = NLI_infer_OG(
+            args.target_model_path,
+            nclasses=args.nclasses,
+            max_seq_length=args.max_seq_length,
+        )
+        # build the semantic similarity module
+        use = USE_og(model.tokenizer, model.model)
     predictor = model.text_pred
     # print("Model built!")
 

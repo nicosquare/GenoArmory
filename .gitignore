@@ -34,7 +34,7 @@ TextFooler/cos_sim_counter_fitting/*
 TextFooler/adv_results/*
 TextFooler/embeddings/*
 nucleotide-transformer/*
-FreeLB/
+
 # C extensions
 *.so
 *.pt
