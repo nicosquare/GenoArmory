@@ -1,7 +1,7 @@
 # %%
 import os
 import torch as ch
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, AutoModelForSequenceClassification
 from robustness.bert_layers import BertForSequenceClassification
 import sklearn
 import numpy as np
@@ -13,8 +13,6 @@ import torch
 import random
 
 from robustness.datasets import DNA
-from robustness.tools.vis_tools import show_image_row
-from robustness.tools.label_maps import CLASS_DICT
 from robustness.model_utils import make_and_restore_model
 
 ATTACK_EPS = 0.5
@@ -98,6 +96,12 @@ parser.add_argument(
     type=str,
     required=True,
     help="Path to pre-trained model or shortcut name selected in the list",
+)
+
+parser.add_argument(
+    "--model_type",
+    default='bert',
+    type=str,
 )
 
 parser.add_argument(
@@ -186,14 +190,22 @@ tokenizer = AutoTokenizer.from_pretrained(
     cache_dir=args.cache_dir if args.cache_dir else None,
     trust_remote_code=True,
 )
-model = BertForSequenceClassification.from_pretrained(
-    args.model_name_or_path,
-    from_tf=bool(".ckpt" in args.model_name_or_path),
-    config=config,
-    cache_dir=args.cache_dir if args.cache_dir else None,
-    trust_remote_code=True,
-)
-
+if args.model_type == 'bert':
+    model = BertForSequenceClassification.from_pretrained(
+        args.model_name_or_path,
+        from_tf=bool(".ckpt" in args.model_name_or_path),
+        config=config,
+        cache_dir=args.cache_dir if args.cache_dir else None,
+        trust_remote_code=True,
+    )
+else:
+    model = AutoModelForSequenceClassification.from_pretrained(
+        args.model_name_or_path,
+        from_tf=bool(".ckpt" in args.model_name_or_path),
+        config=config,
+        cache_dir=args.cache_dir if args.cache_dir else None,
+        trust_remote_code=True,
+    )
 ds = DNA(args)
 
 
