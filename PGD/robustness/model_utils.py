@@ -4,6 +4,7 @@ import dill
 import os
 from .tools import helpers, constants
 from .attacker import AttackerModel
+from .attacker_hyena import AttackerHyenaModel
 
 class FeatureExtractor(ch.nn.Module):
     '''
@@ -50,7 +51,7 @@ class DummyModel(nn.Module):
     def forward(self, x, *args, **kwargs):
         return self.model(x)
 
-def make_and_restore_model(*_, arch, dataset, resume_path=None,
+def make_and_restore_model(*_, args, arch, dataset, resume_path=None,
          parallel=False, pytorch_pretrained=False, add_custom_forward=False):
     """
     Makes a model and (optionally) restores it from a checkpoint.
@@ -80,8 +81,10 @@ def make_and_restore_model(*_, arch, dataset, resume_path=None,
     """
 
     classifier_model = arch
-
-    model = AttackerModel(classifier_model, dataset)
+    if args.model_type =='hyena':
+        model = AttackerHyenaModel(args, classifier_model, dataset)
+    else:
+        model = AttackerModel(args, classifier_model, dataset)
 
 
     if parallel:

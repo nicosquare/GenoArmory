@@ -1,7 +1,7 @@
 from transformers import AutoModelForSequenceClassification, AutoModelForMaskedLM, AutoTokenizer, AutoConfig, BertConfig
 
 model_type = 'nt'
-mlm_path = ''
+mlm_path = 'InstaDeepAI/nucleotide-transformer-v2-100m-multi-species'
 config_tgt = AutoConfig.from_pretrained(mlm_path)
 mlm_model = AutoModelForMaskedLM.from_pretrained(mlm_path, config=config_tgt, trust_remote_code=True)
 mlm_model.to('cuda')

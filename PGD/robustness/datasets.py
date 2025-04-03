@@ -83,23 +83,46 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
                 truncation=True,
                 return_tensors="pt"
             )
-            features.append({
-                "input_ids": inputs["input_ids"].squeeze(0),
-                "attention_mask": inputs["attention_mask"].squeeze(0),
-                "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
-                "label": label
-            })
+            if args.model_type=='bert':
+                features.append({
+                    "input_ids": inputs["input_ids"].squeeze(0),
+                    "attention_mask": inputs["attention_mask"].squeeze(0),
+                    "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
+                    "label": label
+                })
+            elif args.model_type == 'hyena': 
+                features.append({
+                    "input_ids": inputs["input_ids"].squeeze(0),
+                    "label": label
+                })
+            else:
+                features.append({
+                    "input_ids": inputs["input_ids"].squeeze(0),
+                    "attention_mask": inputs["attention_mask"].squeeze(0),
+                    "label": label
+                })
+
 
         
         torch.save(features, cached_features_file)
     
     # Convert to Tensors and build dataset
-    all_input_ids = torch.stack([f["input_ids"] for f in features])
-    all_attention_mask = torch.stack([f["attention_mask"] for f in features])
-    all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
-    all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
-    
-    dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
+    if args.model_type=='bert':
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_attention_mask = torch.stack([f["attention_mask"] for f in features])
+        all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_labels)
+    elif args.model_type=='hyena':
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids,  all_labels)
+    else:
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_attention_mask = torch.stack([f["attention_mask"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids, all_attention_mask, all_labels)
+        
     return dataset
 
 

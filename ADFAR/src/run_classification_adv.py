@@ -13,8 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Finetuning the library models for sequence classification on GLUE (Bert, XLM, XLNet, RoBERTa, Albert, XLM-RoBERTa)."""
-
+"""Finetuning the library models for sequence classification on GLUE (Bert, XLM, XLNet, RoBERTa, Albert, XLM-RoBERTa)."""
 
 import dataclasses
 import logging
@@ -28,8 +27,16 @@ import transformers
 from modeling import PrLMForClassificationSvd
 import modeling
 
-from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, EvalPrediction, GlueDataset
-from data_process.data_processor import ClassificationDataTrainingArguments as DataTrainingArguments
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    EvalPrediction,
+    GlueDataset,
+)
+from data_process.data_processor import (
+    ClassificationDataTrainingArguments as DataTrainingArguments,
+)
 from transformers import (
     HfArgumentParser,
     TrainingArguments,
@@ -38,7 +45,10 @@ from transformers import (
 )
 from transformers import Trainer
 
-from data_process.data_processor import classification_tasks_num_labels,ClassificationDataset
+from data_process.data_processor import (
+    classification_tasks_num_labels,
+    ClassificationDataset,
+)
 import transformers.data.metrics as metrics
 
 
@@ -47,12 +57,16 @@ logger = logging.getLogger(__name__)
 """
 Manually calculate the accuracy, f1, matthews_correlation, precision, recall with sklearn.
 """
+
+
 def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
     if logits.ndim == 3:
         # Reshape logits to 2D if needed
         logits = logits.reshape(-1, logits.shape[-1])
     predictions = np.argmax(logits, axis=-1)
-    valid_mask = labels != -100  # Exclude padding tokens (assuming -100 is the padding token ID)
+    valid_mask = (
+        labels != -100
+    )  # Exclude padding tokens (assuming -100 is the padding token ID)
     valid_predictions = predictions[valid_mask]
     valid_labels = labels[valid_mask]
     return {
@@ -74,12 +88,15 @@ def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
 
 """
 Compute metrics used for huggingface trainer.
-""" 
+"""
+
+
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     if isinstance(logits, tuple):  # Unpack logits if it's a tuple
         logits = logits[0]
     return calculate_metric_with_sklearn(logits, labels)
+
 
 @dataclass
 class ModelArguments:
@@ -88,7 +105,9 @@ class ModelArguments:
     """
 
     model_name_or_path: str = field(
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+        metadata={
+            "help": "Path to pretrained model or model identifier from huggingface.co/models"
+        }
     )
     svd_reserve_size: int = field(
         default=0, metadata={"help": "number of dimensions to be reserved after svd"}
@@ -97,17 +116,24 @@ class ModelArguments:
         default=0, metadata={"help": "number of dimensions to be reserved after svd"}
     )
     config_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
+        default=None,
+        metadata={
+            "help": "Pretrained config name or path if not the same as model_name"
+        },
     )
     tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+        default=None,
+        metadata={
+            "help": "Pretrained tokenizer name or path if not the same as model_name"
+        },
     )
     cache_dir: Optional[str] = field(
-        default=None, metadata={"help": "Where do you want to store the pretrained models downloaded from s3"}
+        default=None,
+        metadata={
+            "help": "Where do you want to store the pretrained models downloaded from s3"
+        },
     )
-    
-
-
+    model_type: Optional[str] = field(default="bert", metadata={"help": "model type"})
 
 
 def main():
@@ -115,12 +141,16 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments)
+    )
 
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1])
+        )
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
@@ -158,7 +188,7 @@ def main():
         output_mode = "classification"
     except KeyError:
         raise ValueError("Task not found: %s" % (data_args.task_name))
-    
+
     # Load pretrained model and tokenizer
     #
     # Distributed training:
@@ -166,72 +196,106 @@ def main():
     # download model & vocab.
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+        model_args.config_name
+        if model_args.config_name
+        else model_args.model_name_or_path,
         num_labels=num_labels,
         cache_dir=model_args.cache_dir,
-        trust_remote_code=True
+        trust_remote_code=True,
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        model_args.tokenizer_name
+        if model_args.tokenizer_name
+        else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
-        trust_remote_code=True
+        trust_remote_code=True,
     )
     config.svd_reserve_size = model_args.svd_reserve_size
-    
-    if model_args.attention == 3 :
-        model = modeling.BertForSequenceClassificationAdvV3.from_pretrained(pretrained_model_name_or_path = model_args.model_name_or_path,
-                                                                                config=config,
-                                                                                cache_dir = model_args.cache_dir,
-                                                                                trust_remote_code=True,
-                                                                                ignore_mismatched_sizes=True
-                                                                                )
 
+    if model_args.model_type == "bert":
+        model_v3 = modeling.BertForSequenceClassificationAdvV3
+        model_v2 = modeling.BertForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.BertForSequenceClassificationAdvV2_mnli
+    elif model_args.model_type == "nt":
+        model_v3 = modeling.EsmForSequenceClassificationAdvV3
+        model_v2 = modeling.EsmForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.EsmForSequenceClassificationAdvV2_mnli
+    elif model_args.model_type == "hyena":
+        model_v3 = modeling.HyenaForSequenceClassificationAdvV3
+        model_v2 = modeling.HyenaForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.HyenaForSequenceClassificationAdvV2_mnli
+    elif model_args.model_type == "og":
+        model_v3 = modeling.MistralForSequenceClassificationAdvV3
+        model_v2 = modeling.MistralForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.MistralForSequenceClassificationAdvV2_mnli
+    else:
+        raise ValueError(f"Model type {model_args.model_type} not supported")
 
-        
-    elif model_args.attention == 2 :
-        model =modeling.BertForSequenceClassificationAdvV2.from_pretrained(pretrained_model_name_or_path = model_args.model_name_or_path,
-                                                                                config=config,
-                                                                                cache_dir = model_args.cache_dir,
-                                                                                trust_remote_code=True,
-                                                                                ignore_mismatched_sizes=True
-                                                                                )
-    elif model_args.attention == 6 :
-        model =modeling.BertForSequenceClassificationAdvV2_mnli.from_pretrained(pretrained_model_name_or_path = model_args.model_name_or_path,
-                                                                                config=config,
-                                                                                cache_dir = model_args.cache_dir,
-                                                                                trust_remote_code=True,
-                                                                                ignore_mismatched_sizes=True
-                                                                                )
+    if model_args.attention == 3:
+        model = model_v3.from_pretrained(
+            pretrained_model_name_or_path=model_args.model_name_or_path,
+            config=config,
+            cache_dir=model_args.cache_dir,
+            trust_remote_code=True,
+            ignore_mismatched_sizes=True,
+        )
+
+    elif model_args.attention == 2:
+        model = model_v2.from_pretrained(
+            pretrained_model_name_or_path=model_args.model_name_or_path,
+            config=config,
+            cache_dir=model_args.cache_dir,
+            trust_remote_code=True,
+            ignore_mismatched_sizes=True,
+        )
+    elif model_args.attention == 6:
+        model = model_v2_mnli.from_pretrained(
+            pretrained_model_name_or_path=model_args.model_name_or_path,
+            config=config,
+            cache_dir=model_args.cache_dir,
+            trust_remote_code=True,
+            ignore_mismatched_sizes=True,
+        )
     elif model_args.attention == -1:
-        model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_name_or_path = model_args.model_name_or_path,
-                                                                                config=config,
-                                                                                cache_dir = model_args.cache_dir,
-                                                                                trust_remote_code=True,
-                                                                                ignore_mismatched_sizes=True
-                                                                                )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            pretrained_model_name_or_path=model_args.model_name_or_path,
+            config=config,
+            cache_dir=model_args.cache_dir,
+            trust_remote_code=True,
+            ignore_mismatched_sizes=True,
+        )
     else:
         model = PrLMForClassificationSvd.from_pretrained_svd(
-            pretrained_model_name_or_path = model_args.model_name_or_path,
+            pretrained_model_name_or_path=model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
             cache_dir=model_args.cache_dir,
-            trust_remote_code=True
         )
     print("model loaded")
     # Get datasets
     train_dataset = (
-        ClassificationDataset(data_args, model_args, tokenizer=tokenizer, cache_dir=model_args.cache_dir) if training_args.do_train else None
+        ClassificationDataset(
+            data_args, model_args, tokenizer=tokenizer, cache_dir=model_args.cache_dir
+        )
+        if training_args.do_train
+        else None
     )
     eval_dataset = (
-        ClassificationDataset(data_args, model_args, tokenizer=tokenizer, mode="dev", cache_dir=model_args.cache_dir)
+        ClassificationDataset(
+            data_args,
+            model_args,
+            tokenizer=tokenizer,
+            mode="dev",
+            cache_dir=model_args.cache_dir,
+        )
         if training_args.do_eval
         else None
     )
 
-
     def build_compute_metrics_fn() -> Callable[[EvalPrediction], Dict]:
         def compute_metrics_fn(p: EvalPrediction):
             return compute_metrics((p.predictions, p.label_ids))
+
         return compute_metrics_fn
 
     # Initialize our Trainer
@@ -246,13 +310,15 @@ def main():
     # Training
     if training_args.do_train:
         trainer.train(
-            model_path=model_args.model_name_or_path if os.path.isdir(model_args.model_name_or_path) else None
+            model_path=model_args.model_name_or_path
+            if os.path.isdir(model_args.model_name_or_path)
+            else None
         )
         trainer.save_model()
         # For convenience, we also re-save the tokenizer to the same directory,
         # so that you can share your model easily on huggingface.co/models =)
         # if trainer.is_world_master():
-        #tokenizer.save_pretrained(training_args.output_dir)
+        # tokenizer.save_pretrained(training_args.output_dir)
 
     # Evaluation
     eval_results = {}
@@ -266,10 +332,13 @@ def main():
             eval_result = trainer.evaluate(eval_dataset=eval_dataset)
 
             output_eval_file = os.path.join(
-                training_args.output_dir, f"eval_results_{eval_dataset.args.task_name}.txt"
+                training_args.output_dir,
+                f"eval_results_{eval_dataset.args.task_name}.txt",
             )
             with open(output_eval_file, "a") as writer:
-                logger.info("***** Eval results {} *****".format(eval_dataset.args.task_name))
+                logger.info(
+                    "***** Eval results {} *****".format(eval_dataset.args.task_name)
+                )
                 for key, value in eval_result.items():
                     logger.info("  %s = %s", key, value)
                     writer.write("%s = %s\n" % (key, value))

@@ -58,7 +58,7 @@ class Attacker(ch.nn.Module):
     However, the :meth:`robustness.Attacker.forward` function below
     documents the arguments supported for adversarial attacks specifically.
     """
-    def __init__(self, model, dataset):
+    def __init__(self, model, dataset, args):
         """
         Initialize the Attacker
 
@@ -67,8 +67,9 @@ class Attacker(ch.nn.Module):
             Dataset dataset : dataset the model is trained on, only used to get mean and std for normalization
         """
         super(Attacker, self).__init__()
-        self.normalize = helpers.InputNormalize(dataset.mean, dataset.std)
+        #self.normalize = helpers.InputNormalize(dataset.mean, dataset.std)
         self.model = model
+        self.args = args
 
     def forward(self, inp, target, *_, constraint, eps, step_size, iterations,
                 random_start=False, random_restarts=False, do_tqdm=False,
@@ -225,7 +226,7 @@ class Attacker(ch.nn.Module):
                 inputs_embeds.requires_grad_(True)
 
                 losses, out = calc_loss({"inputs_embeds": step.to_image(inputs_embeds).to(self.model.device),
-                                 "attention_mask": x["attention_mask"].to(self.model.device), "labels": x["labels"].to(self.model.device)}, target.to(self.model.device))
+                                 "attention_mask": x["attention_mask"].to(self.model.device) if 'attention_mask' in x else None, "labels": x["labels"].to(self.model.device)}, target.to(self.model.device))
                 
                 loss = ch.mean(losses)
 
@@ -323,12 +324,12 @@ class AttackerModel(ch.nn.Module):
     For a more comprehensive overview of this class, see 
     :doc:`our detailed walkthrough <../example_usage/input_space_manipulation>`.
     """
-    def __init__(self, model, dataset):
+    def __init__(self, args, model, dataset):
         super(AttackerModel, self).__init__()
         self.normalizer = self.normalize
         self.model = model
-        self.attacker = Attacker(model, dataset)
-
+        self.attacker = Attacker(args, model, dataset)
+        self.args = args
 
 
 

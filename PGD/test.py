@@ -212,7 +212,7 @@ ds = DNA(args)
 
 # %%
 
-model = make_and_restore_model(arch=model, dataset=ds)
+model = make_and_restore_model(args=args, arch=model, dataset=ds)
 #model.eval()
 
 test_loader = ds.make_loaders(args, tokenizer, workers=args.worker, batch_size=args.batch_size)
@@ -225,8 +225,11 @@ all_metrics = []
 
 for batch in test_loader:
     # Prepare input and labels
-    im = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[3]}
-    label = batch[3]
+    if args.model_type == 'hyena':
+        im = {"input_ids": batch[0], "labels": batch[-1]}
+    else:
+        im = {"input_ids": batch[0], "attention_mask": batch[1], "labels": batch[-1]}
+    label = batch[-1]
 
     # Generate adversarial examples
     _, im_adv = model(im, label, make_adv=True, **kwargs)
