@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-tasks=("hyena")
+tasks=("nt2")
 
 cd /projects/p32013/DNABERT-meta/ADFAR/src
 

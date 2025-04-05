@@ -248,7 +248,6 @@ class HyenaDNAForSequenceClassificationAdvV2_mnli(HyenaDNAPreTrainedModel):
 
         self.hyena = HyenaDNAModel(config)
         self.dropout = nn.Dropout(config.embed_dropout)
-        self.score = nn.Linear(config.d_model, self.num_labels, bias=False)
         self.classifier1 = nn.Linear(config.d_model, 3)
         self.classifier2 = nn.Linear(config.d_model, 1)
 
@@ -286,8 +285,8 @@ class HyenaDNAForSequenceClassificationAdvV2_mnli(HyenaDNAPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
+        
 
-        logits = self.score(sequence_output)
         if input_ids is not None:
             batch_size = input_ids.shape[0]
         else:
@@ -303,12 +302,12 @@ class HyenaDNAForSequenceClassificationAdvV2_mnli(HyenaDNAPreTrainedModel):
             if input_ids is not None:
                 sequence_lengths = (
                     torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(logits.device)
+                ).to(sequence_output.device)
             else:
                 sequence_lengths = -1
 
-        pooled_output = logits[
-            torch.arange(batch_size, device=logits.device), sequence_lengths
+        pooled_output = sequence_output[
+            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
         ]
 
         pooled_output = self.dropout(pooled_output)
@@ -517,7 +516,6 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
         self.num_labels = config.num_labels
 
         self.hyena = HyenaDNAModel(config)
-        self.score = nn.Linear(config.d_model, self.num_labels, bias=False)
         self.dropout = nn.Dropout(config.embed_dropout)
         self.classifier1 = nn.Linear(config.d_model, 2)
         self.classifier2 = nn.Linear(config.d_model, 1)
@@ -557,7 +555,7 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
         )
         sequence_output = outputs[0]
 
-        logits = self.score(sequence_output)
+        
         if input_ids is not None:
             batch_size = input_ids.shape[0]
         else:
@@ -573,12 +571,12 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
             if input_ids is not None:
                 sequence_lengths = (
                     torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(logits.device)
+                ).to(sequence_output.device)
             else:
                 sequence_lengths = -1
 
-        pooled_output = logits[
-            torch.arange(batch_size, device=logits.device), sequence_lengths
+        pooled_output = sequence_output[
+            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
         ]
 
         pooled_output = self.dropout(pooled_output)
@@ -1119,7 +1117,7 @@ class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
         self.num_labels = config.num_labels
 
         self.hyena = HyenaDNAModel(config)
-        self.score = nn.Linear(config.d_model, self.num_labels, bias=False)
+        
         self.pooler1 = Pooler(config)
         self.pooler2 = Pooler(config)
         self.dropout = nn.Dropout(config.embed_dropout)
@@ -1162,7 +1160,6 @@ class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
         )
         sequence_output = outputs[0]
 
-        logits = self.score(sequence_output)
         if input_ids is not None:
             batch_size = input_ids.shape[0]
         else:
@@ -1178,12 +1175,12 @@ class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
             if input_ids is not None:
                 sequence_lengths = (
                     torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(logits.device)
+                ).to(sequence_output.device)
             else:
                 sequence_lengths = -1
 
-        pooled_output = logits[
-            torch.arange(batch_size, device=logits.device), sequence_lengths
+        pooled_output = sequence_output[
+            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
         ]
 
         pooled_output = self.dropout(pooled_output)
