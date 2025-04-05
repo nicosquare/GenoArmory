@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 
+
 class USE_og(torch.nn.Module):
     def __init__(self, tokenizer, model):
         super(USE_og, self).__init__()
         self.tokenizer = tokenizer
-        self.model = model.esm
+        self.model = model.model
         print(self.model.device)
 
     def avg_pooling(self, model_output, attention_mask):
@@ -19,13 +20,16 @@ class USE_og(torch.nn.Module):
 
     def forward(self, sents1, sents2):
         # Tokenize both lists of sentences in one go to optimize batching
-
         inputs1 = self.tokenizer(
             sents1, padding=True, truncation=True, return_tensors="pt"
         ).to(self.model.device)
         inputs2 = self.tokenizer(
             sents2, padding=True, truncation=True, return_tensors="pt"
         ).to(self.model.device)
+
+        # Remove token_type_ids if present
+        inputs1.pop("token_type_ids", None)
+        inputs2.pop("token_type_ids", None)
 
         with torch.no_grad():
             # Forward pass for both batches
@@ -77,10 +81,11 @@ class USE_hyena(torch.nn.Module):
         with torch.no_grad():
             # Forward pass for both batches
             # For HyenaDNA, we need to get the embeddings first
-           
 
             # Get the sequence embeddings
-            outputs1 = self.model(inputs1["input_ids"])[0]  # Use the first output (hidden states)
+            outputs1 = self.model(inputs1["input_ids"])[
+                0
+            ]  # Use the first output (hidden states)
             outputs2 = self.model(inputs2["input_ids"])[0]
 
         # Extract embeddings using average pooling
@@ -96,6 +101,7 @@ class USE_hyena(torch.nn.Module):
     def semantic_sim(self, sents1, sents2):
         # Return the similarity scores as a NumPy array
         return self.forward(sents1, sents2).cpu().numpy()
+
 
 class USE_nt(torch.nn.Module):
     def __init__(self, tokenizer, model):
@@ -142,6 +148,7 @@ class USE_nt(torch.nn.Module):
         # Return the similarity scores as a NumPy array
         return self.forward(sents1, sents2).cpu().numpy()
 
+
 class USE_DNABERT(torch.nn.Module):
     def __init__(self, tokenizer, model):
         super(USE_DNABERT, self).__init__()
@@ -151,28 +158,36 @@ class USE_DNABERT(torch.nn.Module):
 
     def avg_pooling(self, model_output, attention_mask):
         token_embeddings = model_output
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size())
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(
+            token_embeddings.size()
+        )
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
         return sum_embeddings / sum_mask
 
     def forward(self, sents1, sents2):
         # Tokenize both lists of sentences in one go to optimize batching
-        
-        inputs1 = self.tokenizer(sents1, padding=True, truncation=True, return_tensors="pt").to(self.model.device)
-        inputs2 = self.tokenizer(sents2, padding=True, truncation=True, return_tensors="pt").to(self.model.device)
-        
+
+        inputs1 = self.tokenizer(
+            sents1, padding=True, truncation=True, return_tensors="pt"
+        ).to(self.model.device)
+        inputs2 = self.tokenizer(
+            sents2, padding=True, truncation=True, return_tensors="pt"
+        ).to(self.model.device)
+
         with torch.no_grad():
             # Forward pass for both batches
             outputs1 = self.model(**inputs1)[0]
             outputs2 = self.model(**inputs2)[0]
-        
+
         # Extract embeddings using average pooling
-        embeddings1 = self.avg_pooling(outputs1, inputs1['attention_mask'])
-        embeddings2 = self.avg_pooling(outputs2, inputs2['attention_mask'])
-        
+        embeddings1 = self.avg_pooling(outputs1, inputs1["attention_mask"])
+        embeddings2 = self.avg_pooling(outputs2, inputs2["attention_mask"])
+
         # Compute cosine similarity between the sentence embeddings
-        sim_scores = torch.nn.functional.cosine_similarity(embeddings1, embeddings2, dim=-1)
+        sim_scores = torch.nn.functional.cosine_similarity(
+            embeddings1, embeddings2, dim=-1
+        )
         return sim_scores
 
     def semantic_sim(self, sents1, sents2):

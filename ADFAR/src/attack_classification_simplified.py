@@ -1,17 +1,18 @@
 import argparse
 import os
 import numpy as np
-import TextFooler.dataloader as dataloader
-# import criteria
+# from train_classifier import Model
+
 import random
 
+# import tensorflow as tf
+# import tensorflow_hub as hub
 
 import torch
 import torch.nn as nn
 
 from USE import USE_hyena, USE_DNABERT, USE_nt, USE_og
 from NLI_infer_model import NLI_infer_BERT, NLI_infer_Hyena, NLI_infer_NT, NLI_infer_OG
-
 
 def get_tokenized_dna(sequence, tokenizer):
     tokens = tokenizer.tokenize(sequence)
@@ -365,7 +366,7 @@ def main():
         "--target_model",
         type=str,
         required=True,
-        choices=["nt", "bert", 'hyena', 'og'],
+        choices=["nt1", "bert", 'hyena', 'og', 'nt2'],
     )
     parser.add_argument(
         "--target_model_path",
@@ -490,7 +491,7 @@ def main():
             max_seq_length=args.max_seq_length,
         )
         use = USE_hyena(model.tokenizer, model.model)
-    elif args.target_model == "nt":
+    elif args.target_model == "nt1" or args.target_model == "nt2":
         model = NLI_infer_Hyena(
             args.target_model_path,
             nclasses=args.nclasses,
@@ -624,6 +625,8 @@ def main():
         for orig_text, adv_text, true_label, new_label in zip(
             orig_texts, adv_texts, true_labels, new_labels
         ):
+            orig_text = orig_text.replace(' ', '')
+            adv_text = adv_text.replace(' ', '')
             ofile.write(
                 "orig sent ({}):\t{}\nadv sent ({}):\t{}\n\n".format(
                     true_label, orig_text, new_label, adv_text

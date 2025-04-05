@@ -5,10 +5,14 @@ import math
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from .configuration_hyena import HyenaConfig
+from configuration_hyena import HyenaConfig
 from transformers import PreTrainedModel
 from typing import Optional, Tuple, Union
-from transformers.modeling_outputs import CausalLMOutput, SequenceClassifierOutput, BaseModelOutputWithNoAttention
+from transformers.modeling_outputs import (
+    CausalLMOutput,
+    SequenceClassifierOutput,
+    BaseModelOutputWithNoAttention,
+)
 
 
 def fftconv(u, k, D):
@@ -22,8 +26,9 @@ def fftconv(u, k, D):
     k_f = torch.fft.rfft(k.to(torch.float32), n=fft_size) / fft_size
     u_f = torch.fft.rfft(u.to(dtype=torch.float32), n=fft_size)
 
-    if len(u.shape) > 3: k_f = k_f.unsqueeze(1)
-    y = torch.fft.irfft(u_f * k_f, n=fft_size, norm='forward')[..., :seqlen]
+    if len(u.shape) > 3:
+        k_f = k_f.unsqueeze(1)
+    y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
 
     out = y + u * D.unsqueeze(-1)
     return out.to(dtype=u.dtype)
@@ -36,9 +41,14 @@ def mul_sum(q, y):
 
 class HyenaSin(nn.Module):
     """The Sin activation function for the Hyena Filter function."""
+
     def __init__(self, config):
         super().__init__()
-        self.freq = nn.Parameter(config.activation_freq * torch.ones(1, config.filter_order)) if config.train_freq else config.activation_freq * torch.ones(1, config.filter_order)
+        self.freq = (
+            nn.Parameter(config.activation_freq * torch.ones(1, config.filter_order))
+            if config.train_freq
+            else config.activation_freq * torch.ones(1, config.filter_order)
+        )
 
     def forward(self, x):
         return torch.sin(self.freq * x)
@@ -51,13 +61,13 @@ class HyenaPositionalEmbedding(nn.Module):
 
         self.seq_len = config.max_seq_len
         # The time embedding fed to the filteres is normalized so that t_f = 1
-        t = torch.linspace(0, 1, self.seq_len)[None, :, None] # 1, L, 1
+        t = torch.linspace(0, 1, self.seq_len)[None, :, None]  # 1, L, 1
 
         if config.emb_dim > 1:
             bands = (config.emb_dim - 1) // 2
         # To compute the right embeddings we use the "proper" linspace
         t_rescaled = torch.linspace(0, self.seq_len - 1, self.seq_len)[None, :, None]
-        w = 2 * math.pi * t_rescaled / self.seq_len # 1, L, 1
+        w = 2 * math.pi * t_rescaled / self.seq_len  # 1, L, 1
 
         f = torch.linspace(1e-4, bands - 1, bands)[None, None]
 
@@ -72,15 +82,16 @@ class HyenaPositionalEmbedding(nn.Module):
 
 class HyenaExponentialModulation(nn.Module):
     """The window function applied to the output of the (MLP) filter function."""
+
     def __init__(
         self,
         d_model,
         fast_decay_pct=0.3,
         slow_decay_pct=1.5,
         target=1e-2,
-        modulate: bool=True,
+        modulate: bool = True,
         shift: float = 0.05,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.modulate = modulate
@@ -98,11 +109,7 @@ class HyenaExponentialModulation(nn.Module):
 
 
 class HyenaFilter(nn.Module):
-    def __init__(
-            self,
-            config,
-            **kwargs
-        ):
+    def __init__(self, config, **kwargs):
         """
         Implicit long filter with modulation.
 
@@ -124,7 +131,9 @@ class HyenaFilter(nn.Module):
 
         act = HyenaSin(config)
         self.emb_dim = config.emb_dim
-        assert self.emb_dim % 2 != 0 and self.emb_dim >= 3, "emb_dim must be odd and greater or equal to 3 (time, sine and cosine)"
+        assert self.emb_dim % 2 != 0 and self.emb_dim >= 3, (
+            "emb_dim must be odd and greater or equal to 3 (time, sine and cosine)"
+        )
         self.seq_len = config.max_seq_len
 
         self.pos_emb = HyenaPositionalEmbedding(config)
@@ -134,10 +143,14 @@ class HyenaFilter(nn.Module):
             act,
         )
         for i in range(config.num_inner_mlps):
-            self.implicit_filter.append(nn.Linear(config.filter_order, config.filter_order))
+            self.implicit_filter.append(
+                nn.Linear(config.filter_order, config.filter_order)
+            )
             self.implicit_filter.append(act)
 
-        self.implicit_filter.append(nn.Linear(config.filter_order, config.d_model, bias=False))
+        self.implicit_filter.append(
+            nn.Linear(config.filter_order, config.d_model, bias=False)
+        )
 
         self.modulation = HyenaExponentialModulation(config.d_model)
 
@@ -150,7 +163,8 @@ class HyenaFilter(nn.Module):
         return h
 
     def forward(self, x, L, k=None, bias=None, *args, **kwargs):
-        if k is None: k = self.filter(L)
+        if k is None:
+            k = self.filter(L)
 
         # Ensure compatibility with filters that return a tuple
         k = k[0] if type(k) is tuple else k
@@ -161,10 +175,10 @@ class HyenaFilter(nn.Module):
 
 class HyenaOperator(nn.Module):
     def __init__(
-            self,
-            config,
-            **filter_args,
-        ):
+        self,
+        config,
+        **filter_args,
+    ):
         r"""
         Hyena operator described in the paper https://arxiv.org/pdf/2302.10866.pdf
 
@@ -190,7 +204,7 @@ class HyenaOperator(nn.Module):
             inner_width,
             config.short_filter_order,
             padding=2,
-            groups=inner_width
+            groups=inner_width,
         )
         self.filter_fn = HyenaFilter(config)
 
@@ -199,7 +213,7 @@ class HyenaOperator(nn.Module):
         l_filter = min(l, self.l_max)
         u = self.in_proj(u).transpose(1, 2)
 
-        uc = self.short_filter(u)[...,:l_filter]
+        uc = self.short_filter(u)[..., :l_filter]
         *x, v = uc.split(self.d_model, dim=1)
 
         k = self.filter_fn.filter(l_filter)[0]
@@ -215,8 +229,8 @@ class HyenaOperator(nn.Module):
         y = self.out_proj(y)
         return y
 
-class HyenaMlp(nn.Module):
 
+class HyenaMlp(nn.Module):
     def __init__(self, config):
         """
         From https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/modules/mlp.py
@@ -233,8 +247,8 @@ class HyenaMlp(nn.Module):
         y = self.fc2(y)
         return y
 
-class HyenaBlock(nn.Module):
 
+class HyenaBlock(nn.Module):
     def __init__(self, config):
         """
         From https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/modules/block.py
@@ -284,28 +298,31 @@ class HyenaBlock(nn.Module):
 
 
 class HyenaEmbeddings(nn.Module):
-
     def __init__(self, config, padding_idx=None):
         """
-            If max_position_embeddings <= 0, there's no position embeddings
-            If word_embe_proj_dim is not None (e.g., OPT-350m), we embed to that dimension
-                the project up to embed_dim
+        If max_position_embeddings <= 0, there's no position embeddings
+        If word_embe_proj_dim is not None (e.g., OPT-350m), we embed to that dimension
+            the project up to embed_dim
         """
         super().__init__()
         vocab_size = config.vocab_size
         if vocab_size % config.pad_vocab_size_multiple != 0:
-            vocab_size += config.pad_vocab_size_multiple - (vocab_size % config.pad_vocab_size_multiple)
-        self.word_embeddings = nn.Embedding(vocab_size, config.d_model, padding_idx=padding_idx)
+            vocab_size += config.pad_vocab_size_multiple - (
+                vocab_size % config.pad_vocab_size_multiple
+            )
+        self.word_embeddings = nn.Embedding(
+            vocab_size, config.d_model, padding_idx=padding_idx
+        )
 
     def forward(self, input_ids):
         """
-            input_ids: (batch, seqlen)
+        input_ids: (batch, seqlen)
         """
         embeddings = self.word_embeddings(input_ids)
         return embeddings
 
-class HyenaLMBackbone(nn.Module):
 
+class HyenaLMBackbone(nn.Module):
     def __init__(self, config) -> None:
         super().__init__()
         # note max_position_embeddings is 0 for Hyena, and therefore isn't used
@@ -328,7 +345,9 @@ class HyenaLMBackbone(nn.Module):
 
         for layer in self.layers:
             if self.gradient_checkpointing and self.training:
-                hidden_states = self._gradient_checkpointing_func(layer.__call__, hidden_states)
+                hidden_states = self._gradient_checkpointing_func(
+                    layer.__call__, hidden_states
+                )
             else:
                 hidden_states = layer(hidden_states)
             if output_hidden_states:
@@ -347,7 +366,9 @@ class HyenaDNAPreTrainedModel(PreTrainedModel):
     supports_gradient_checkpointing = True
     _no_split_modules = ["HyenaBlock"]
     _skip_keys_device_placement = "past_key_values"
-    _keys_to_ignore_on_load_missing = [r"freq"]  # Shared tensors that safetensors merges
+    _keys_to_ignore_on_load_missing = [
+        r"freq"
+    ]  # Shared tensors that safetensors merges
 
     def _init_weights(self, module, initializer_range=0.02):
         if isinstance(module, nn.Linear):
@@ -365,11 +386,19 @@ class HyenaDNAPreTrainedModel(PreTrainedModel):
         for name, p in self.named_parameters():
             if name in ["out_proj.weight", "fc2.weight"]:
                 # Special Scaled Initialization --> There are 2 Layer Norms per Transformer Block
-                nn.init.normal_(p, mean=0.0, std=initializer_range / math.sqrt(2 * self.config.num_layers))
+                nn.init.normal_(
+                    p,
+                    mean=0.0,
+                    std=initializer_range / math.sqrt(2 * self.config.num_layers),
+                )
             # If using GLU activation for now, we scale the std by 2
             elif name in ["output_linear.0.weight"]:
                 # Special Scaled Initialization --> There are 2 Layer Norms per Transformer Block
-                nn.init.normal_(p, mean=0.0, std=initializer_range / math.sqrt(2 * self.config.num_layers))
+                nn.init.normal_(
+                    p,
+                    mean=0.0,
+                    std=initializer_range / math.sqrt(2 * self.config.num_layers),
+                )
 
 
 class HyenaDNAModel(HyenaDNAPreTrainedModel):
@@ -382,16 +411,28 @@ class HyenaDNAModel(HyenaDNAPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def forward(self, input_ids, inputs_embeds=None, output_hidden_states=None, return_dict=None):
+    def forward(
+        self, input_ids, inputs_embeds=None, output_hidden_states=None, return_dict=None
+    ):
         output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
-        hidden_states, all_hidden_states = self.backbone(input_ids, inputs_embeds=inputs_embeds, output_hidden_states=output_hidden_states)
+        hidden_states, all_hidden_states = self.backbone(
+            input_ids,
+            inputs_embeds=inputs_embeds,
+            output_hidden_states=output_hidden_states,
+        )
         if return_dict:
-            return BaseModelOutputWithNoAttention(last_hidden_state=hidden_states,
-                                                  hidden_states=all_hidden_states if output_hidden_states else None)
+            return BaseModelOutputWithNoAttention(
+                last_hidden_state=hidden_states,
+                hidden_states=all_hidden_states if output_hidden_states else None,
+            )
         elif output_hidden_states:
             return hidden_states, all_hidden_states
         else:
@@ -399,13 +440,14 @@ class HyenaDNAModel(HyenaDNAPreTrainedModel):
 
 
 class HyenaDNAForCausalLM(HyenaDNAPreTrainedModel):
-
     def __init__(self, config, **kwargs):
         super().__init__(config, **kwargs)
         self.hyena = HyenaDNAModel(config)
         vocab_size = config.vocab_size
         if vocab_size % config.pad_vocab_size_multiple != 0:
-            vocab_size += config.pad_vocab_size_multiple - (vocab_size % config.pad_vocab_size_multiple)
+            vocab_size += config.pad_vocab_size_multiple - (
+                vocab_size % config.pad_vocab_size_multiple
+            )
         self.vocab_size = vocab_size
         self.lm_head = nn.Linear(config.d_model, vocab_size, bias=False)
 
@@ -438,11 +480,14 @@ class HyenaDNAForCausalLM(HyenaDNAPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutput]:
-
         output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.hyena(
@@ -504,8 +549,9 @@ class HyenaDNAForSequenceClassification(HyenaDNAPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, SequenceClassifierOutput]:
-        
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         transformer_outputs = self.hyena(
             input_ids,
@@ -522,18 +568,22 @@ class HyenaDNAForSequenceClassification(HyenaDNAPreTrainedModel):
             batch_size = inputs_embeds.shape[0]
 
         if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError("Cannot handle batch sizes > 1 if no padding token is defined.")
+            raise ValueError(
+                "Cannot handle batch sizes > 1 if no padding token is defined."
+            )
         if self.config.pad_token_id is None:
             sequence_lengths = -1
         else:
             if input_ids is not None:
-                sequence_lengths = (torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1).to(
-                    logits.device
-                )
+                sequence_lengths = (
+                    torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
+                ).to(logits.device)
             else:
                 sequence_lengths = -1
 
-        pooled_logits = logits[torch.arange(batch_size, device=logits.device), sequence_lengths]
+        pooled_logits = logits[
+            torch.arange(batch_size, device=logits.device), sequence_lengths
+        ]
 
         loss = None
         if labels is not None:
@@ -541,7 +591,9 @@ class HyenaDNAForSequenceClassification(HyenaDNAPreTrainedModel):
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
-                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                elif self.num_labels > 1 and (
+                    labels.dtype == torch.long or labels.dtype == torch.int
+                ):
                     self.config.problem_type = "single_label_classification"
                 else:
                     self.config.problem_type = "multi_label_classification"
@@ -554,7 +606,9 @@ class HyenaDNAForSequenceClassification(HyenaDNAPreTrainedModel):
                     loss = loss_fct(pooled_logits, labels)
             elif self.config.problem_type == "single_label_classification":
                 loss_fct = nn.CrossEntropyLoss()
-                loss = loss_fct(pooled_logits.view(-1, self.num_labels), labels.view(-1))
+                loss = loss_fct(
+                    pooled_logits.view(-1, self.num_labels), labels.view(-1)
+                )
             elif self.config.problem_type == "multi_label_classification":
                 loss_fct = nn.BCEWithLogitsLoss()
                 loss = loss_fct(pooled_logits, labels)

@@ -13,7 +13,6 @@ class NLI_infer_Hyena(nn.Module):
         self.model = AutoModelForSequenceClassification.from_pretrained(
             pretrained_dir, config=self.model_config, trust_remote_code=True
         ).cuda()
-
         # construct dataset loader
         self.dataset = NLIDataset_Hyena(
             pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size

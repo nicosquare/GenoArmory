@@ -46,7 +46,6 @@ from transformers import (
 from transformers import Trainer
 
 from data_process.data_processor import (
-    classification_tasks_num_labels,
     ClassificationDataset,
 )
 import transformers.data.metrics as metrics
@@ -216,14 +215,14 @@ def main():
         model_v3 = modeling.BertForSequenceClassificationAdvV3
         model_v2 = modeling.BertForSequenceClassificationAdvV2
         model_v2_mnli = modeling.BertForSequenceClassificationAdvV2_mnli
-    elif model_args.model_type == "nt":
+    elif model_args.model_type == "nt1" or model_args.model_type == "nt2":
         model_v3 = modeling.EsmForSequenceClassificationAdvV3
         model_v2 = modeling.EsmForSequenceClassificationAdvV2
         model_v2_mnli = modeling.EsmForSequenceClassificationAdvV2_mnli
     elif model_args.model_type == "hyena":
-        model_v3 = modeling.HyenaForSequenceClassificationAdvV3
-        model_v2 = modeling.HyenaForSequenceClassificationAdvV2
-        model_v2_mnli = modeling.HyenaForSequenceClassificationAdvV2_mnli
+        model_v3 = modeling.HyenaDNAForSequenceClassificationAdvV3
+        model_v2 = modeling.HyenaDNAForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.HyenaDNAForSequenceClassificationAdvV2_mnli
     elif model_args.model_type == "og":
         model_v3 = modeling.MistralForSequenceClassificationAdvV3
         model_v2 = modeling.MistralForSequenceClassificationAdvV2
@@ -241,6 +240,7 @@ def main():
         )
 
     elif model_args.attention == 2:
+        
         model = model_v2.from_pretrained(
             pretrained_model_name_or_path=model_args.model_name_or_path,
             config=config,
@@ -307,6 +307,7 @@ def main():
         compute_metrics=build_compute_metrics_fn(),
     )
 
+    print(training_args)
     # Training
     if training_args.do_train:
         trainer.train(
@@ -314,6 +315,7 @@ def main():
             if os.path.isdir(model_args.model_name_or_path)
             else None
         )
+
         trainer.save_model()
         # For convenience, we also re-save the tokenizer to the same directory,
         # so that you can share your model easily on huggingface.co/models =)

@@ -548,7 +548,6 @@ class ClassificationDataset(Dataset):
                 split = line.strip('\n').split('\t')
                 label = int(split[-1])
                 seq = split[0]
-                print(label)
                 examples.append([seq, label])
                     
             # Convert examples to features
@@ -561,17 +560,28 @@ class ClassificationDataset(Dataset):
                     truncation=True,
                     return_tensors="pt"
                 )
-                features.append({
-                    "input_ids": inputs["input_ids"].squeeze(0),
-                    "attention_mask": inputs["attention_mask"].squeeze(0),
-                    "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
-                    "label": label
-                })
+                if model_args.model_type == "hyena":
+                    features.append({
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "label": label
+                    })
+                else:
+                    features.append({
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "attention_mask": inputs["attention_mask"].squeeze(0),
+                        "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
+                        "label": label
+                    })
             torch.save(features, cached_features_file)
-        all_input_ids = torch.stack([f["input_ids"] for f in features])
-        all_attention_mask = torch.stack([f["attention_mask"] for f in features])
-        all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
-        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        
+        if model_args.model_type == "hyena":
+            all_input_ids = torch.stack([f["input_ids"] for f in features])
+            all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        else:
+            all_input_ids = torch.stack([f["input_ids"] for f in features])
+            all_attention_mask = torch.stack([f["attention_mask"] for f in features])
+            all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
+            all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
         
         self.features = features
 
