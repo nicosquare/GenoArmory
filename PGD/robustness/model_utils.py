@@ -81,6 +81,7 @@ def make_and_restore_model(*_, args, arch, dataset, resume_path=None,
     """
 
     classifier_model = arch
+
     if args.model_type =='hyena':
         model = AttackerHyenaModel(args, classifier_model, dataset)
     else:

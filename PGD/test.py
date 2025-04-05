@@ -184,6 +184,9 @@ config = AutoConfig.from_pretrained(
         cache_dir=args.cache_dir if args.cache_dir else None,
         trust_remote_code=True,
     )
+if args.model_type == 'nt':
+    config.token_dropout = False
+
 tokenizer = AutoTokenizer.from_pretrained(
     args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
     do_lower_case=args.do_lower_case,

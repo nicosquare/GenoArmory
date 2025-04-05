@@ -58,7 +58,7 @@ class Attacker(ch.nn.Module):
     However, the :meth:`robustness.Attacker.forward` function below
     documents the arguments supported for adversarial attacks specifically.
     """
-    def __init__(self, model, dataset, args):
+    def __init__(self, args, model, dataset):
         """
         Initialize the Attacker
 
@@ -140,6 +140,7 @@ class Attacker(ch.nn.Module):
         input_ids = inp.get("input_ids")
         attention_mask = inp.get("attention_mask")
         labels = inp.get('labels')
+
         with torch.no_grad():  # Prevent initial gradients during embedding lookup
             inputs_embeds = self.model.get_input_embeddings()(inp["input_ids"].to(self.model.device)).detach()
         
