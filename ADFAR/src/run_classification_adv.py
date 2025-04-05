@@ -26,6 +26,7 @@ import numpy as np
 import transformers
 from modeling import PrLMForClassificationSvd
 import modeling
+import modeling2
 
 from transformers import (
     AutoConfig,
@@ -195,9 +196,7 @@ def main():
     # download model & vocab.
 
     config = AutoConfig.from_pretrained(
-        model_args.config_name
-        if model_args.config_name
-        else model_args.model_name_or_path,
+        model_args.model_name_or_path,
         num_labels=num_labels,
         cache_dir=model_args.cache_dir,
         trust_remote_code=True,
@@ -206,7 +205,6 @@ def main():
         model_args.tokenizer_name
         if model_args.tokenizer_name
         else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
         trust_remote_code=True,
     )
     config.svd_reserve_size = model_args.svd_reserve_size
@@ -215,14 +213,18 @@ def main():
         model_v3 = modeling.BertForSequenceClassificationAdvV3
         model_v2 = modeling.BertForSequenceClassificationAdvV2
         model_v2_mnli = modeling.BertForSequenceClassificationAdvV2_mnli
-    elif model_args.model_type == "nt1" or model_args.model_type == "nt2":
+    elif model_args.model_type == "nt1":
         model_v3 = modeling.EsmForSequenceClassificationAdvV3
         model_v2 = modeling.EsmForSequenceClassificationAdvV2
         model_v2_mnli = modeling.EsmForSequenceClassificationAdvV2_mnli
+    elif model_args.model_type == "nt2":
+        model_v3 = modeling.Esm2ForSequenceClassificationAdvV3
+        model_v2 = modeling.Esm2ForSequenceClassificationAdvV2
+        model_v2_mnli = modeling.Esm2ForSequenceClassificationAdvV2_mnli
     elif model_args.model_type == "hyena":
-        model_v3 = modeling.HyenaDNAForSequenceClassificationAdvV3
-        model_v2 = modeling.HyenaDNAForSequenceClassificationAdvV2
-        model_v2_mnli = modeling.HyenaDNAForSequenceClassificationAdvV2_mnli
+        model_v3 = modeling2.HyenaDNAForSequenceClassificationAdvV3
+        model_v2 = modeling2.HyenaDNAForSequenceClassificationAdvV2
+        model_v2_mnli = modeling2.HyenaDNAForSequenceClassificationAdvV2_mnli
     elif model_args.model_type == "og":
         model_v3 = modeling.MistralForSequenceClassificationAdvV3
         model_v2 = modeling.MistralForSequenceClassificationAdvV2

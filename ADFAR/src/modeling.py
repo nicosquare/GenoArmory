@@ -24,6 +24,8 @@ from transformers.models.mistral.modeling_mistral import (
 )
 from typing import List, Optional, Tuple, Union
 
+from modeling_esm import EsmModel as EsmModel2
+
 
 def real_labels(labels):
     attack_labels = torch.zeros_like(labels, dtype=labels.dtype, device=labels.device)
@@ -208,10 +210,11 @@ class EsmForSequenceClassificationAdvV2_mnli(EsmPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
+        pooled_output = outputs[1]
 
-        sequence_output = self.dropout(sequence_output)
-        logits1 = self.classifier1(sequence_output)
-        logits2 = self.classifier2(sequence_output)
+        pooled_output = self.dropout(pooled_output)
+        logits1 = self.classifier1(pooled_output)
+        logits2 = self.classifier2(pooled_output)
         prob = torch.sigmoid(logits2)
         loss = None
         if labels is not None:
@@ -241,15 +244,15 @@ class EsmForSequenceClassificationAdvV2_mnli(EsmPreTrainedModel):
         )
 
 
-class HyenaDNAForSequenceClassificationAdvV2_mnli(HyenaDNAPreTrainedModel):
+class Esm2ForSequenceClassificationAdvV2_mnli(EsmPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.hyena = HyenaDNAModel(config)
-        self.dropout = nn.Dropout(config.embed_dropout)
-        self.classifier1 = nn.Linear(config.d_model, 3)
-        self.classifier2 = nn.Linear(config.d_model, 1)
+        self.esm = EsmModel2(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier1 = nn.Linear(config.hidden_size, 3)
+        self.classifier2 = nn.Linear(config.hidden_size, 1)
 
         self.init_weights()
 
@@ -277,38 +280,18 @@ class HyenaDNAForSequenceClassificationAdvV2_mnli(HyenaDNAPreTrainedModel):
         return_dict = (
             return_dict if return_dict is not None else self.config.use_return_dict
         )
-
-        outputs = self.hyena(
+        outputs = self.esm(
             input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            head_mask=head_mask,
             inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
-        
-
-        if input_ids is not None:
-            batch_size = input_ids.shape[0]
-        else:
-            batch_size = inputs_embeds.shape[0]
-
-        if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError(
-                "Cannot handle batch sizes > 1 if no padding token is defined."
-            )
-        if self.config.pad_token_id is None:
-            sequence_lengths = -1
-        else:
-            if input_ids is not None:
-                sequence_lengths = (
-                    torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(sequence_output.device)
-            else:
-                sequence_lengths = -1
-
-        pooled_output = sequence_output[
-            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
-        ]
+        pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)
         logits1 = self.classifier1(pooled_output)
@@ -475,109 +458,7 @@ class EsmForSequenceClassificationAdvV2(EsmPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
-
-        sequence_output = self.dropout(sequence_output)
-        logits1 = self.classifier1(sequence_output)
-        logits2 = self.classifier2(sequence_output)
-        prob = torch.sigmoid(logits2)
-        loss = None
-        if labels is not None:
-            attack_labels, orig_labels, simplify_labels, isMR_labels = real_labels(
-                labels
-            )
-            loss_fct1 = CrossEntropyLoss()
-            loss1 = loss_fct1(logits1.view(-1, 2), orig_labels.view(-1))
-            loss_fct2 = nn.BCEWithLogitsLoss()
-            active_loss2 = simplify_labels.view(-1) == 0
-            active_logits2 = logits2.view(-1)[active_loss2]
-            active_labels2 = attack_labels.float().view(-1)[active_loss2]
-            loss2 = loss_fct2(active_logits2, active_labels2)
-            loss = loss1 + loss2
-
-        if inference:
-            output = (logits1, prob) + outputs[2:]
-            return ((loss,) + output) if loss is not None else output
-
-        if not return_dict:
-            output = (logits1,) + outputs[2:]
-            return ((loss,) + output) if loss is not None else output
-
-        return SequenceClassifierOutput(
-            loss=loss,
-            logits=logits1,
-            hidden_states=outputs[0],
-            # attentions=outputs.attentions,
-        )
-
-
-class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
-    def __init__(self, config):
-        super().__init__(config)
-        self.num_labels = config.num_labels
-
-        self.hyena = HyenaDNAModel(config)
-        self.dropout = nn.Dropout(config.embed_dropout)
-        self.classifier1 = nn.Linear(config.d_model, 2)
-        self.classifier2 = nn.Linear(config.d_model, 1)
-
-        self.init_weights()
-
-    def forward(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        head_mask=None,
-        inputs_embeds=None,
-        labels=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
-        inference=False,
-    ):
-        r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the sequence classification/regression loss.
-            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
-            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
-            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        """
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
-
-        outputs = self.hyena(
-            input_ids,
-            inputs_embeds=inputs_embeds,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        sequence_output = outputs[0]
-
-        
-        if input_ids is not None:
-            batch_size = input_ids.shape[0]
-        else:
-            batch_size = inputs_embeds.shape[0]
-
-        if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError(
-                "Cannot handle batch sizes > 1 if no padding token is defined."
-            )
-        if self.config.pad_token_id is None:
-            sequence_lengths = -1
-        else:
-            if input_ids is not None:
-                sequence_lengths = (
-                    torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(sequence_output.device)
-            else:
-                sequence_lengths = -1
-
-        pooled_output = sequence_output[
-            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
-        ]
+        pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)
         logits1 = self.classifier1(pooled_output)
@@ -611,6 +492,90 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
             hidden_states=outputs[0],
             # attentions=outputs.attentions,
         )
+
+class Esm2ForSequenceClassificationAdvV2(EsmPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.esm = EsmModel2(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier1 = nn.Linear(config.hidden_size, 2)
+        self.classifier2 = nn.Linear(config.hidden_size, 1)
+
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        inference=False,
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the sequence classification/regression loss.
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
+
+        outputs = self.esm(
+            input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        sequence_output = outputs[0]
+        pooled_output = outputs[1]
+
+        pooled_output = self.dropout(pooled_output)
+        logits1 = self.classifier1(pooled_output)
+        logits2 = self.classifier2(pooled_output)
+        prob = torch.sigmoid(logits2)
+        loss = None
+        if labels is not None:
+            attack_labels, orig_labels, simplify_labels, isMR_labels = real_labels(
+                labels
+            )
+            loss_fct1 = CrossEntropyLoss()
+            loss1 = loss_fct1(logits1.view(-1, 2), orig_labels.view(-1))
+            loss_fct2 = nn.BCEWithLogitsLoss()
+            active_loss2 = simplify_labels.view(-1) == 0
+            active_logits2 = logits2.view(-1)[active_loss2]
+            active_labels2 = attack_labels.float().view(-1)[active_loss2]
+            loss2 = loss_fct2(active_logits2, active_labels2)
+            loss = loss1 + loss2
+
+        if inference:
+            output = (logits1, prob) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        if not return_dict:
+            output = (logits1,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=logits1,
+            hidden_states=outputs[0],
+            # attentions=outputs.attentions,
+        )
+
 
 
 class MistralForSequenceClassificationAdvV2(MistralPreTrainedModel):
@@ -1111,19 +1076,19 @@ class MistralForSequenceClassificationAdvV3(MistralPreTrainedModel):
         )
 
 
-class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
+
+class EsmForSequenceClassificationAdvV3(EsmPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.hyena = HyenaDNAModel(config)
-        
+        self.esm = EsmModel(config)
         self.pooler1 = Pooler(config)
         self.pooler2 = Pooler(config)
-        self.dropout = nn.Dropout(config.embed_dropout)
-        self.classifier1 = nn.Linear(config.d_model, 2)
-        self.classifier2 = nn.Linear(config.d_model, 2)
-        self.classifier3 = nn.Linear(config.d_model, 1)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier1 = nn.Linear(config.hidden_size, 2)
+        self.classifier2 = nn.Linear(config.hidden_size, 2)
+        self.classifier3 = nn.Linear(config.hidden_size, 1)
 
         self.init_weights()
 
@@ -1152,36 +1117,18 @@ class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
             return_dict if return_dict is not None else self.config.use_return_dict
         )
 
-        outputs = self.hyena(
+        outputs = self.esm(
             input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            head_mask=head_mask,
             inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
-
-        if input_ids is not None:
-            batch_size = input_ids.shape[0]
-        else:
-            batch_size = inputs_embeds.shape[0]
-
-        if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError(
-                "Cannot handle batch sizes > 1 if no padding token is defined."
-            )
-        if self.config.pad_token_id is None:
-            sequence_lengths = -1
-        else:
-            if input_ids is not None:
-                sequence_lengths = (
-                    torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(sequence_output.device)
-            else:
-                sequence_lengths = -1
-
-        pooled_output = sequence_output[
-            torch.arange(batch_size, device=sequence_output.device), sequence_lengths
-        ]
+        pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)
         output2 = self.pooler1(pooled_output)
@@ -1244,12 +1191,13 @@ class HyenaDNAForSequenceClassificationAdvV3(HyenaDNAPreTrainedModel):
         )
 
 
-class EsmForSequenceClassificationAdvV3(EsmPreTrainedModel):
+
+class Esm2ForSequenceClassificationAdvV3(EsmPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.esm = EsmModel(config)
+        self.esm = EsmModel2(config)
         self.pooler1 = Pooler(config)
         self.pooler2 = Pooler(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -1295,11 +1243,12 @@ class EsmForSequenceClassificationAdvV3(EsmPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
+        pooled_output = outputs[1]
 
-        sequence_output = self.dropout(sequence_output)
-        output2 = self.pooler1(sequence_output)
-        output3 = self.pooler2(sequence_output)
-        logits1 = self.classifier1(sequence_output)
+        pooled_output = self.dropout(pooled_output)
+        output2 = self.pooler1(pooled_output)
+        output3 = self.pooler2(pooled_output)
+        logits1 = self.classifier1(pooled_output)
         logits2 = self.classifier2(output2)
         logits3 = self.classifier3(output3)
         prob = torch.sigmoid(logits3)
@@ -1355,6 +1304,7 @@ class EsmForSequenceClassificationAdvV3(EsmPreTrainedModel):
             hidden_states=outputs[0],
             # attentions=outputs.attentions,
         )
+
 
 
 class BertForSequenceClassificationAdvBase(BertPreTrainedModel):

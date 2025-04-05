@@ -545,10 +545,16 @@ class ClassificationDataset(Dataset):
             examples = []
             lines = open(file_path, 'r', encoding='utf-8').readlines()[1:]
             for i, line in enumerate(lines):
-                split = line.strip('\n').split('\t')
-                label = int(split[-1])
-                seq = split[0]
-                examples.append([seq, label])
+                try:
+                    split = line.strip('\n').split('\t')
+                    label = int(split[-1])
+                    seq = split[0]
+                    examples.append([seq, label])
+                except:
+                    split = line.strip('\n').split(',')
+                    label = int(split[-1])
+                    seq = split[0]
+                    examples.append([seq, label])
                     
             # Convert examples to features
             features = []
@@ -560,6 +566,7 @@ class ClassificationDataset(Dataset):
                     truncation=True,
                     return_tensors="pt"
                 )
+                
                 if model_args.model_type == "hyena":
                     features.append({
                         "input_ids": inputs["input_ids"].squeeze(0),
@@ -576,6 +583,10 @@ class ClassificationDataset(Dataset):
         
         if model_args.model_type == "hyena":
             all_input_ids = torch.stack([f["input_ids"] for f in features])
+            all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        elif model_args.model_type == "nt1" or model_args.model_type == "nt2" or model_args.model_type == "og":
+            all_input_ids = torch.stack([f["input_ids"] for f in features])
+            all_attention_mask = torch.stack([f["attention_mask"] for f in features])
             all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
         else:
             all_input_ids = torch.stack([f["input_ids"] for f in features])

@@ -22,7 +22,7 @@ dataset_dirs = ["0"]
 # Loop over each dataset directory
 for dataset_dir in dataset_dirs:
   dataset_path = os.path.join(base_dir, dataset_dir, 'cat.csv')
-  target_model_path = f"/projects/p32013/DNABERT-meta/hyena-dna/hyena/output_pipe/{dataset_dir}/origin"
+  target_model_path = f"/projects/p32013/DNABERT-meta/nucleotide-transformer/nucleotide/output_pipe/0/origin"
 
   # # Check if the dataset file exists
   # if os.path.exists(dataset_path):
@@ -102,12 +102,11 @@ for dataset_dir in dataset_dirs:
     '--svd_reserve_size 0 ' \
     '--evaluation_strategy epoch ' \
     '--overwrite_output_dir ' \
-    f'--model_type {task}' 
-
-os.system(command3)
-os.system(command4)
-os.system(command5)
-os.system(command6)
-os.system(command7)
+    f'--model_type {task} '  
+# os.system(command3)
+# os.system(command4)
+# os.system(command5)
+# os.system(command6)
+# os.system(command7)
 os.system(command8)
 

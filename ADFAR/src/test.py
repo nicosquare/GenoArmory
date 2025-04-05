@@ -1,13 +1,13 @@
-class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
+class EsmForSequenceClassificationAdvV2(EsmPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
 
-        self.hyena = HyenaDNAModel(config)
-        self.score = nn.Linear(config.d_model, self.num_labels, bias=False)
-        self.dropout = nn.Dropout(config.embed_dropout)
-        self.classifier1 = nn.Linear(config.d_model, 2)
-        self.classifier2 = nn.Linear(config.d_model, 1)
+        self.esm = EsmModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.pooler = nn.Linear(config.hidden_size, config.hidden_size)
+        self.classifier1 = nn.Linear(config.hidden_size, 2)
+        self.classifier2 = nn.Linear(config.hidden_size, 1)
 
         self.init_weights()
 
@@ -36,39 +36,22 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
             return_dict if return_dict is not None else self.config.use_return_dict
         )
 
-        outputs = self.hyena(
+        outputs = self.esm(
             input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            head_mask=head_mask,
             inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
         sequence_output = outputs[0]
 
-
-        if input_ids is not None:
-            batch_size = input_ids.shape[0]
-        else:
-            batch_size = inputs_embeds.shape[0]
-
-        if self.config.pad_token_id is None and batch_size != 1:
-            raise ValueError(
-                "Cannot handle batch sizes > 1 if no padding token is defined."
-            )
-        if self.config.pad_token_id is None:
-            sequence_lengths = -1
-        else:
-            if input_ids is not None:
-                sequence_lengths = (
-                    torch.eq(input_ids, self.config.pad_token_id).long().argmax(-1) - 1
-                ).to(logits.device)
-            else:
-                sequence_lengths = -1
-
-        pooled_output = logits[
-            torch.arange(batch_size, device=logits.device), sequence_lengths
-        ]
-
+        # Pool the sequence output
+        pooled_output = self.pooler(sequence_output[:, 0])  # Take the [CLS] token representation
         pooled_output = self.dropout(pooled_output)
+        
         logits1 = self.classifier1(pooled_output)
         logits2 = self.classifier2(pooled_output)
         prob = torch.sigmoid(logits2)
@@ -78,7 +61,7 @@ class HyenaDNAForSequenceClassificationAdvV2(HyenaDNAPreTrainedModel):
                 labels
             )
             loss_fct1 = CrossEntropyLoss()
-            loss1 = loss_fct1(logits1.view(-1, 2), orig_labels.view(-1))
+            loss1 = loss_fct1(logits1, orig_labels)
             loss_fct2 = nn.BCEWithLogitsLoss()
             active_loss2 = simplify_labels.view(-1) == 0
             active_logits2 = logits2.view(-1)[active_loss2]
