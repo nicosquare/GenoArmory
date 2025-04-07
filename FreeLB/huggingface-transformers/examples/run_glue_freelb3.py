@@ -34,11 +34,8 @@ from transformers import (
     AutoConfig, AutoTokenizer, BertConfig, WEIGHTS_NAME, 
     AdamW, get_linear_schedule_with_warmup
 )
-from DNABERT2.bert_layers import DNABertForSequenceClassification
-from DNABERT2.modeling_esm import EsmForSequenceClassification
-from DNABERT2.modeling_esm2 import EsmForSequenceClassification as EsmForSequenceClassification2
+
 from DNABERT2.modeling_hyena import HyenaDNAForSequenceClassification
-from DNABERT2.modeling_mistral import MistralForSequenceClassification
 
 
 from transformers import glue_processors as processors
@@ -93,11 +90,7 @@ logger = logging.getLogger(__name__)
 
 
 MODEL_CLASSES = {
-    "dnabert": (BertConfig, DNABertForSequenceClassification, AutoTokenizer),
     "hyena": (AutoConfig, HyenaDNAForSequenceClassification, AutoTokenizer),
-    "nt1": (AutoConfig, EsmForSequenceClassification, AutoTokenizer),
-    "nt2": (AutoConfig, EsmForSequenceClassification2, AutoTokenizer),
-    "og": (AutoConfig, MistralForSequenceClassification, AutoTokenizer),
 }
 
 

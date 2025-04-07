@@ -2,13 +2,16 @@
 
 tasks=( "H3" "H3K14ac" "H3K36me3" "H3K4me1" "H3K4me2" "H3K4me3" "H3K79me3" "H3K9ac" "H4" "H4ac" "prom_core_all" "prom_core_notata" "prom_core_tata" "prom_300_all" "prom_300_notata" "prom_300_tata" "tf0" "tf1" "tf2" "tf3" "tf4" "0" "1" "2" "3" "4" )
 
+# tasks=( "0" )
+model="hyena"
+
 function runexp {
     local task=$1
 
     export GUE_DIR='/projects/p32013/DNABERT-meta/GUE'
 
     gpu=0                  
-    mname="/scratch/hlv8980/GERM_ICML/output_zhihan_vanilla_Full_double/zhihan_vanilla_dnabert2_Full_double_${task}"
+    mname="/scratch/hlv8980/Attack_Benchmark/models/${model}/${task}/origin"
     alr=1e-1                # Step size of gradient ascent
     amag=6e-1               # Magnitude of initial perturbation
     anorm=0                 # Maximum norm of adversarial perturbation
@@ -23,11 +26,17 @@ function runexp {
     ws=100                  # Warm-up steps
     seed=42                 # Random seed
     wd=1e-2                 # Weight decay
-    model_type='dnabert'    # Model type
+    model_type=${model}    # Model type
 
     expname=${model_type}_${task}
 
-    python examples/run_glue_freelb2.py \
+    if [ "${model_type}" = "hyena" ]; then
+        script="examples/run_glue_freelb3.py"
+    else
+        script="examples/run_glue_freelb2.py"
+    fi
+
+    python ${script} \
       --model_type ${model_type} \
       --model_name_or_path ${mname} \
       --task_name ${task} \
@@ -47,6 +56,7 @@ function runexp {
       --logging_steps 100 --save_steps 100 \
       --num_label 2 \
       --overwrite_output_dir \
+      --overwrite_cache \
       > logs/${expname}.log
 
     echo "---
