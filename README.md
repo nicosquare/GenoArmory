@@ -66,8 +66,18 @@ genoarmory visualize --sequences "ATCGGTCA" "GCTATAGC" --save-path "attention.pn
 
 ## Documentation
 
-For detailed documentation, visit [docs](https://genoarmory.readthedocs.io/).
+For detailed documentation, visit [docs](We will release soon).
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.
+
+## Citation
+
+If you have any question regarding our paper or codes, please feel free to start an issue.
+
+If you use GenoArmory in your work, please kindly cite our paper:
+
+```
+
+```
