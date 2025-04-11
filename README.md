@@ -1,6 +1,6 @@
 # GenoArmory
 
-A comprehensive toolkit for DNA sequence attack and defense, inspired by jailbreakbench.
+A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
 
 ## Installation
 
