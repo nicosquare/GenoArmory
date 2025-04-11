@@ -58,6 +58,7 @@ genoarmory visualize --sequences "ATCGGTCA" "GCTATAGC" --save-path "attention.pn
 
   - ADFAR
   - FreeLB
+  - Traditional Adversarial Training
 
 - Visualization tools
 - Artifact management
