@@ -16,6 +16,7 @@
 """Finetuning the library models for sequence classification on GLUE (Bert, XLM, XLNet, RoBERTa, Albert, XLM-RoBERTa)."""
 
 import dataclasses
+import json
 import logging
 import os
 import sys
@@ -24,9 +25,9 @@ from typing import Callable, Dict, Optional
 import sklearn
 import numpy as np
 import transformers
-from modeling import PrLMForClassificationSvd
-import modeling
-import modeling2
+# from modeling import PrLMForClassificationSvd
+# import modeling
+# import modeling2
 
 from transformers import (
     AutoConfig,
@@ -154,6 +155,7 @@ def main():
     else:
         model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
+
     if (
         os.path.exists(training_args.output_dir)
         and os.listdir(training_args.output_dir)
@@ -208,6 +210,12 @@ def main():
         trust_remote_code=True,
     )
     config.svd_reserve_size = model_args.svd_reserve_size
+
+    if model_args.model_type == "hyena":
+        import modeling2
+    else:
+        from modeling import PrLMForClassificationSvd
+        import modeling
 
     if model_args.model_type == "bert":
         model_v3 = modeling.BertForSequenceClassificationAdvV3

@@ -1,10 +1,11 @@
 import shap
 from sklearn.metrics import accuracy_score, confusion_matrix
-from transformers import AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, BertConfig, MistralConfig, AutoModelForSequenceClassification
 import argparse
 import numpy as np
 import pandas as pd
 from bert_layers import BertForSequenceClassification
+from modeling_esm2 import EsmForSequenceClassification as EsmForSequenceClassification2
 import pickle
 import torch
 import random
@@ -68,35 +69,59 @@ class WrappedModel(nn.Module):
         self.model = model
 
     def forward(self, input_embeds):  # Modified to directly take input_embeds for PyTorchDeep compatibility
-        outputs = self.model(input_embeds=input_embeds)
+        outputs = self.model(inputs_embeds=input_embeds)
         return outputs.logits
 
-def df_dl_predict(model, testloader, device):
+def df_dl_predict(args, model, testloader, device):
     preds, labels_list = [], []
 
     model = model.to(device)
     model.eval()
 
     with torch.no_grad():
-        for input_ids, attention_mask, token_type_ids, input_embeds, labels in testloader:
-            labels = labels.to(device)
+        if args.model_type == 'dnabert':
+            for input_ids, attention_mask, token_type_ids, input_embeds, labels in testloader:
+                labels = labels.to(device)
 
-            token_type_ids = token_type_ids.squeeze(1)
+                token_type_ids = token_type_ids.squeeze(1)
 
-            inputs = {
-                'input_ids': input_ids.to(device),
-                'attention_mask': attention_mask.to(device),
-                'token_type_ids': token_type_ids.to(device)
-            }
+                inputs = {
+                    'input_ids': input_ids.to(device),
+                    'attention_mask': attention_mask.to(device),
+                    'token_type_ids': token_type_ids.to(device)
+                }
 
-            
-            outputs = model(**inputs).logits
-            preds.append(outputs.cpu().detach().numpy())
-            labels_list.append(labels.cpu().detach().numpy())
+                
+                outputs = model(**inputs).logits
+                preds.append(outputs.cpu().detach().numpy())
+                labels_list.append(labels.cpu().detach().numpy())
+        elif args.model_type == 'hyena':
+            for input_ids, input_embeds, labels in testloader:
+                labels = labels.to(device)
 
+                inputs = {
+                    'input_ids': input_ids.to(device),
+                }
+
+                outputs = model(**inputs).logits
+                preds.append(outputs.cpu().detach().numpy())
+                labels_list.append(labels.cpu().detach().numpy())
+        else:
+            for input_ids, attention_mask, input_embeds, labels in testloader:
+                labels = labels.to(device)
+
+                inputs = {
+                    'input_ids': input_ids.to(device),
+                    'attention_mask': attention_mask.to(device),
+                }
+
+                outputs = model(**inputs).logits
+                preds.append(outputs.cpu().detach().numpy())
+                labels_list.append(labels.cpu().detach().numpy())
     preds = np.vstack(preds)
     labels_list = np.hstack(labels_list)
 
+    print(model)
     metrics = calculate_metric_with_sklearn(preds, labels_list)
 
     return preds, metrics
@@ -114,7 +139,7 @@ def df_dl_predict2(model, testloader, device):
 
 
             inputs = {
-                'input_embeds': input_embeds.to(device),
+                'inputs_embeds': input_embeds.to(device),
             }
 
 
@@ -170,53 +195,110 @@ def load_and_cache_examples(args, task, tokenizer, model, evaluate=False):
                 return_tensors="pt"
             )
             with torch.no_grad():
-                features.append({
-                    "input_ids": inputs["input_ids"].squeeze(0),
-                    "attention_mask": inputs["attention_mask"].squeeze(0),
-                    "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
-                    "input_embeds": model.get_input_embeddings()(inputs["input_ids"].to(model.device)).detach(),  # Add this line
-                    "label": label
-                })
-
+                if args.model_type == 'dnabert':
+                    features.append({
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "attention_mask": inputs["attention_mask"].squeeze(0),
+                        "token_type_ids": inputs.get("token_type_ids", torch.zeros_like(inputs["input_ids"])),
+                        "input_embeds": model.get_input_embeddings()(inputs["input_ids"].to(model.device)).detach(),  # Add this line
+                        "label": label
+                    })
+                elif args.model_type == 'hyena':
+                    features.append({
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "input_embeds": model.get_input_embeddings()(inputs["input_ids"].to(model.device)).detach(),  # Add this line
+                        "label": label
+                    }) 
+                else:
+                    features.append({
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "attention_mask": inputs["attention_mask"].squeeze(0),
+                        "input_embeds": model.get_input_embeddings()(inputs["input_ids"].to(model.device)).detach(),  # Add this line
+                        "label": label
+                    })
         
         torch.save(features, cached_features_file)
     
-    
-    # Convert to Tensors and build dataset
-    all_input_ids = torch.stack([f["input_ids"] for f in features])
-    all_attention_mask = torch.stack([f["attention_mask"] for f in features])
-    all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
-    all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
-    all_input_embeds = torch.stack([f["input_embeds"] for f in features])
-    
-    dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_input_embeds, all_labels)
-
+    if args.model_type == 'hyena':
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_input_embeds = torch.stack([f["input_embeds"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids, all_input_embeds, all_labels)
+    elif args.model_type == 'dnabert':
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_attention_mask = torch.stack([f["attention_mask"] for f in features])
+        all_token_type_ids = torch.stack([f["token_type_ids"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        all_input_embeds = torch.stack([f["input_embeds"] for f in features])
+        
+        dataset = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_input_embeds, all_labels)
+    else:
+        all_input_ids = torch.stack([f["input_ids"] for f in features])
+        all_attention_mask = torch.stack([f["attention_mask"] for f in features])
+        all_labels = torch.tensor([label_list.index(f["label"]) for f in features], dtype=torch.long)
+        all_input_embeds = torch.stack([f["input_embeds"] for f in features])
+        dataset = TensorDataset(all_input_ids, all_attention_mask, all_input_embeds, all_labels)
     return dataset, all_labels, features
 
 def shap_attack_mp(args): # this is a self contained function that can be run in parallel, shap values are computed in real time here for each sample
     #topf, shap_importance, model, neg_data_test, pos_data_test, xtest, ytest, tree_fps, tree_fns, fps, fns, increase_fn, model_type = args
-
-    config = AutoConfig.from_pretrained(
-        args.config_name if args.config_name else args.model_name_or_path,
-        num_labels=args.num_label,
-        finetuning_task=args.task_name,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-        trust_remote_code=True,
-    )
+    if args.model_type == 'og':
+        config = MistralConfig.from_pretrained(
+            args.config_name if args.config_name else args.model_name_or_path,
+            num_labels=args.num_label,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
+    elif args.model_type == 'dnabert':
+        config = BertConfig.from_pretrained(
+            args.config_name if args.config_name else args.model_name_or_path,
+            num_labels=args.num_label,
+            finetuning_task=args.task_name,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
+    else:
+        config = AutoConfig.from_pretrained(
+            args.config_name if args.config_name else args.model_name_or_path,
+            num_labels=args.num_label,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
     tokenizer = AutoTokenizer.from_pretrained(
         args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
         do_lower_case=args.do_lower_case,
         cache_dir=args.cache_dir if args.cache_dir else None,
         trust_remote_code=True,
     )
-    model = BertForSequenceClassification.from_pretrained(
-        args.model_name_or_path,
-        from_tf=bool(".ckpt" in args.model_name_or_path),
-        config=config,
-        cache_dir=args.cache_dir if args.cache_dir else None,
-        trust_remote_code=True,
-    )
 
+    if args.model_type == 'nt1':
+        config.token_dropout = False
+
+    if args.model_type == 'dnabert':
+        model = BertForSequenceClassification.from_pretrained(
+            args.model_name_or_path,
+            from_tf=bool(".ckpt" in args.model_name_or_path),
+            config=config,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
+    elif args.model_type == 'nt2':
+        model = EsmForSequenceClassification2.from_pretrained(
+            args.model_name_or_path,
+            from_tf=bool(".ckpt" in args.model_name_or_path),
+            config=config,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            args.model_name_or_path,
+            from_tf=bool(".ckpt" in args.model_name_or_path),
+            config=config,
+            cache_dir=args.cache_dir if args.cache_dir else None,
+            trust_remote_code=True,
+        )
+    
 
     wrapmodel = WrappedModel(model)
 
@@ -243,9 +325,9 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
     increase_fn = args.increase_fn
     print('Loaded args')
     
-    preds, metrics = df_dl_predict(model, testloader, device='cuda')
+    preds, metrics1 = df_dl_predict(args, model, testloader, device='cuda')
 
-    print(metrics)
+    print(metrics1)
     
 
     explainer = shap.DeepExplainer(wrapmodel, train_data)
@@ -293,9 +375,14 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
 
     x_copy = xtest.clone()  # get a fresh set
     print('Running SHAP attack...')
+    
+    # Debug: Print original and modified embeddings for a few samples
+    print("Original embeddings shape:", xtest.shape)
+    print("Original embeddings mean:", torch.mean(xtest).item())
+    print("Original embeddings std:", torch.std(xtest).item())
 
     expected_value = explainer.expected_value[0]
-    base_values = np.full((2000),expected_value)
+    base_values = np.full((shap_values.shape),expected_value)
 
     for index, row in tqdm(enumerate(x_copy), total=len(x_copy), desc="Processing"):
         row = row.unsqueeze(0)
@@ -346,8 +433,10 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
                 
                 a0_val = a0
                 a1_val = a1
+                # Increase the interpolation range to make more significant changes
                 sample_space = np.linspace(a0_val, a1_val, precision)
-                x_copy[index] = torch.from_numpy(sample_space.squeeze(1)).to(x_copy.device)
+                # Take the last value in the interpolation to make more significant changes
+                x_copy[index] = torch.from_numpy(sample_space[-1]).to(x_copy.device)
                 # print(f"Feature: {feature} | Original vector value: {a0_val} | Closest FP vector value {a1_val} | Sample space: {sample_space[-2]}")
 
         if increase_fn:
@@ -363,19 +452,18 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
                     vector_id = id_neg[1][0]
                     # print(id_neg)
 
+                    if vector_id < len(fns_data_pooled):
+                        a1 = fns_data_pooled[vector_id]
+                    else:
+                        continue  # Skip if vector_id is out of bounds
+
                     a0 = row_pooled
-                    a1 = fns_data_pooled[vector_id]
-
-                   
-
-
-                a0_val = a0
-                a1_val = a1
-                sample_space = np.linspace(a0_val, a1_val, precision)
-                
-                # print(f"Feature: {feature} | Original vector value: {a0_val} | Closest FN vector value {a1_val} | Sample space: {sample_space[-2]}")
-                
-                x_copy[index] =  torch.from_numpy(sample_space.squeeze(1)).to(x_copy.device)
+                    a1 = a1
+                    sample_space = np.linspace(a0, a1, precision)
+                    
+                    # print(f"Feature: {feature} | Original vector value: {a0_val} | Closest FN vector value {a1_val} | Sample space: {sample_space[-2]}")
+                    
+                    x_copy[index] =  torch.from_numpy(sample_space[-1]).to(x_copy.device)
     
 
     dataset = TensorDataset(x_copy, ytest)
@@ -386,7 +474,7 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
     
 
     print(metrics)
-    return metrics, x_copy
+    return metrics1, metrics, x_copy
     
 
 
@@ -445,6 +533,11 @@ if __name__ == '__main__':
         help="Pretrained tokenizer name or path if not the same as model_name",
     )
     parser.add_argument(
+        "--output_dir",
+        default="",
+        type=str,
+    )
+    parser.add_argument(
         "--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model.",
     )
 
@@ -465,6 +558,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--increase_fn', action='store_true')
 
+    parser.add_argument('--model_type', type=str, default='bert')
+
     args = parser.parse_args()
 
 
@@ -472,10 +567,15 @@ if __name__ == '__main__':
 
 
 
-    metrics, x_copy = shap_attack_mp(args)
+    metrics1, metrics, x_copy = shap_attack_mp(args)
 
-    output_dir = os.path.join('test', args.task_name)
+    output_dir = os.path.join(args.output_dir, args.task_name)
     os.makedirs(output_dir, exist_ok=True)
+    
+    all_metrics = {
+        "metrics1": metrics1,
+        "metrics": metrics
+    }
 
     with open(os.path.join(output_dir, 'all_results.json'), 'w') as f:
-        json.dump(metrics, f, indent=4)
+        json.dump(all_metrics, f, indent=4)

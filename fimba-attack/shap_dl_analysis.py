@@ -249,7 +249,6 @@ if __name__ == '__main__':
     config = AutoConfig.from_pretrained(
         args.config_name if args.config_name else args.model_name_or_path,
         num_labels=args.num_label,
-        finetuning_task=args.task_name,
         cache_dir=args.cache_dir if args.cache_dir else None,
         trust_remote_code=True,
     )
@@ -338,7 +337,7 @@ if __name__ == '__main__':
     shapvalues = np.concatenate(shap_values, axis=0)
     print(f'SHAP values shape: {shapvalues.shape}')
     #shapvalues = explainer.shap_values(test_data.unsqueeze(1).to(device).to(torch.float32))
-
+    print(explainer.expected_value[0])
     
 
     if dataset=='tcga':

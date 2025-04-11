@@ -12,17 +12,18 @@ task = args.task
 # Set the base directory for the datasets
 base_dir = '/projects/p32013/DNABERT-meta/GUE'
 
-# dataset_dirs = ["H3", "H3K14ac", "H3K36me3", "H3K4me1", "H3K4me2", "H3K4me3", "H3K79me3", 
-#                 "H3K9ac", "H4", "H4ac", "prom_core_all", "prom_core_notata", "prom_core_tata", 
-#                 "prom_300_all", "prom_300_notata", "prom_300_tata", "tf0", "tf1", "tf2", 
-#                 "tf3", "tf4", "0", "1", "2", "3", "4"]
+dataset_dirs = ["H3", "H3K14ac", "H3K36me3", "H3K4me1", "H3K4me2", "H3K4me3", "H3K79me3", 
+                "H3K9ac", "H4", "H4ac", "prom_core_all", "prom_core_notata", "prom_core_tata", 
+                "prom_300_all", "prom_300_notata", "prom_300_tata", "tf0", "tf1", "tf2", 
+                "tf3", "tf4", "0", "1", "2", "3", "4"]
 
-dataset_dirs = ["0"]
+# dataset_dirs = ["4"]
 
 # Loop over each dataset directory
 for dataset_dir in dataset_dirs:
   dataset_path = os.path.join(base_dir, dataset_dir, 'cat.csv')
-  target_model_path = f"/projects/p32013/DNABERT-meta/nucleotide-transformer/nucleotide/output_pipe/0/origin"
+  ### model ckpt
+  target_model_path = f"/scratch/hlv8980/Attack_Benchmark/models/{task}/{dataset_dir}/origin"
 
   # # Check if the dataset file exists
   # if os.path.exists(dataset_path):
@@ -85,7 +86,7 @@ for dataset_dir in dataset_dirs:
     f'--output_path /projects/p32013/DNABERT-meta/GUE/{dataset_dir}/{task}/combined_data/4times_adv_0-7/ --isMR 0 '
 
   # Step2. Train our proposed model on the constructed training data
-  command8 = 'python run_classification_adv.py ' \
+  command8 = 'WANDB_DISABLED=true python run_classification_adv.py ' \
     f'--task_name {dataset_dir} ' \
     '--max_seq_len 128 ' \
     '--do_train ' \
@@ -102,11 +103,13 @@ for dataset_dir in dataset_dirs:
     '--svd_reserve_size 0 ' \
     '--evaluation_strategy epoch ' \
     '--overwrite_output_dir ' \
-    f'--model_type {task} '  
-# os.system(command3)
-# os.system(command4)
-# os.system(command5)
-# os.system(command6)
-# os.system(command7)
-os.system(command8)
+    f'--model_type {task} ' \
+    '--overwrite_cache'
+    
+  os.system(command3)
+  os.system(command4)
+  os.system(command5)
+  os.system(command6)
+  os.system(command7)
+  os.system(command8)
 

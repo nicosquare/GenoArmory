@@ -16,7 +16,8 @@ import gc
 import sys
 from tqdm import tqdm
 from models import *
-from transformers import AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, BertConfig
+import scipy as sp
 
 from bert_layers import BertForSequenceClassification
 
@@ -242,10 +243,9 @@ if __name__ == '__main__':
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     
-    config = AutoConfig.from_pretrained(
+    config = BertConfig.from_pretrained(
         args.config_name if args.config_name else args.model_name_or_path,
         num_labels=args.num_label,
-        finetuning_task=args.task_name,
         cache_dir=args.cache_dir if args.cache_dir else None,
         trust_remote_code=True,
     )
@@ -289,52 +289,77 @@ if __name__ == '__main__':
     print('Starting SHAP analysis...\n')
     print(torch.cuda.memory_summary())
 
-    train_data = prepare_shap_inputs(train_data[:args.batch_size], device)  # Small sample for background data
-    test_data = prepare_shap_inputs(tst_data, device)
-
+    # Get the first 1000 samples from training data for background
+    train_data_subset = train_data[:1000]
+    test_data_subset = tst_data  # Also take 1000 test samples for consistency
     
-
     vis_dataset = pd.DataFrame({
-        'input_embeds': train_data.cpu().numpy().tolist(),  # Or select relevant data
+        'input_embeds': train_data_subset,  # Or select relevant data
     })
 
-    
 
-    with torch.no_grad():
+    def f(x):
+        # x is a list of text sequences
+        # Tokenize the sequences
+        inputs = tokenizer(x, padding="max_length", max_length=args.max_seq_length, 
+                         truncation=True, return_tensors="pt")
+        input_ids = inputs["input_ids"].to(device)
+        attention_mask = inputs["attention_mask"].to(device)
         
-        explainer = shap.DeepExplainer(wrapmodel, train_data)
-        del train_data
+        # Get model outputs
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = outputs.logits.detach().cpu().numpy()
+        
+        # Convert to probabilities and get logits for positive class
+        scores = (np.exp(logits).T / np.exp(logits).sum(-1)).T
+        val = sp.special.logit(scores[:, 1])  # use one vs rest logit units
+        return val
 
-    print('SHAP explainer created!\n')
-    expected_value = explainer.expected_value[0]
+    # build an explainer using a token masker
+    explainer = shap.Explainer(f, tokenizer)
 
-    pbar = tqdm(total=test_data.shape[0])
-    
-    
+    # Convert input_ids to text sequences for background
+    train_sequences = []
+    for data in train_data_subset:
+        sequence = tokenizer.decode(data["input_ids"], skip_special_tokens=True)
+        train_sequences.append(sequence)
+
+    # Initialize progress bar
+    pbar = tqdm(total=len(test_data_subset))
     shap_values = []
     flag = True
-    
-    for i in range(test_data.shape[0]):
-        x = test_data[i:i + 1]
+
+    # Calculate SHAP values for each test sample
+    for i in range(len(test_data_subset)):
+        # Convert input_ids to text sequence
+        sequence = tokenizer.decode(test_data_subset[i]["input_ids"], skip_special_tokens=True)
+        x = [sequence]
+        
         # Calculate SHAP values for the i-th sample
-        #print(x.shape)
-        shap_values_i = explainer.shap_values(x,check_additivity=False)
+        shap_values_i = explainer.shap_values(x, check_additivity=False)
+        
         if flag:
             print(f'Shap calculation check, val = {shap_values_i}')
             flag = False
+        
         del x
         gc.collect()
         torch.cuda.empty_cache()
+        
         shap_values.append(shap_values_i[0])
-        pbar.set_description(f'Calculating SHAP values for samples {i+1} to {min(i+1, test_data.shape[0])}')
+        pbar.set_description(f'Calculating SHAP values for samples {i+1} to {min(i+1, len(test_data_subset))}')
         pbar.update(1)
         pbar.refresh()
 
     pbar.close()
+    
+    # Concatenate all SHAP values
     shapvalues = np.concatenate(shap_values, axis=0)
     print(f'SHAP values shape: {shapvalues.shape}')
     #shapvalues = explainer.shap_values(test_data.unsqueeze(1).to(device).to(torch.float32))
-
+    expected_value = explainer.expected_value[0]
+    print(expected_value)
     
 
     if dataset=='tcga':
@@ -354,6 +379,6 @@ if __name__ == '__main__':
                     feature_names=vis_dataset.columns)
     print('Saving SHAP values...\n')
     with open('shap_dicts/shap_'+args.model_name+'_2_'+args.dataset_name+'.pkl', 'wb') as f:
-        pickle.dump(exp_model, f)
+        pickle.dump(shapvalues, f)
 
 

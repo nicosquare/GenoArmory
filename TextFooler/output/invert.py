@@ -46,7 +46,7 @@ def process_folders(input_folder):
             print(f"Skipped (no valid data): {input_file}")
 
 # 设置输入目录
-input_dir = "/projects/p32013/DNABERT-meta/TextFooler/output/nt2"
+input_dir = "/projects/p32013/DNABERT-meta/TextFooler/output/og"
 
 # 运行处理
 process_folders(input_dir)

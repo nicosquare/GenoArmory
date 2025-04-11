@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-tasks=("nt2")
+tasks=("nt1")
 
 cd /projects/p32013/DNABERT-meta/ADFAR/src
 
