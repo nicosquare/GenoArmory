@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.pdf" alt="Image" />
+  <img src="asserts/logo.jpg" alt="Image" />
 </div>
 
 A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
