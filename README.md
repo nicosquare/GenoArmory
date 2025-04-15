@@ -2,7 +2,22 @@
   <img src="asserts/logo.jpg" alt="Image" />
 </div>
 
-A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
+
+<p align="center">
+    <p align="center">A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
+    <br>
+</p>
+
+
+
+<h4 align="center">
+    <a href="https://arxiv.org/abs/2404.01318" target="_blank">Paper</a> |
+    <a href="https://huggingface.co/datasets/magicslabnu/GFM-Attack" target="_blank">Datasets</a> |
+    <a href="https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b" target="_blank">Pretrained Checkpoints</a>
+</h4>
+
+
+
 
 ## Installation
 
