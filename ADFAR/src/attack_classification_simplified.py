@@ -366,7 +366,7 @@ def main():
         "--target_model",
         type=str,
         required=True,
-        choices=["nt1", "bert", 'hyena', 'og', 'nt2'],
+        choices=["nt1", "dnabert", 'hyena', 'og', 'nt2'],
     )
     parser.add_argument(
         "--target_model_path",
@@ -477,7 +477,7 @@ def main():
 
     # construct the model
     # print("Building Model...")
-    if args.target_model == "bert":
+    if args.target_model == "dnabert":
         model = NLI_infer_BERT(
             args.target_model_path,
             nclasses=args.nclasses,

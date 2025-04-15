@@ -134,7 +134,7 @@ class ModelArguments:
             "help": "Where do you want to store the pretrained models downloaded from s3"
         },
     )
-    model_type: Optional[str] = field(default="bert", metadata={"help": "model type"})
+    model_type: Optional[str] = field(default="dnabert", metadata={"help": "model type"})
 
 
 def main():
@@ -217,7 +217,7 @@ def main():
         from modeling import PrLMForClassificationSvd
         import modeling
 
-    if model_args.model_type == "bert":
+    if model_args.model_type == "dnabert":
         model_v3 = modeling.BertForSequenceClassificationAdvV3
         model_v2 = modeling.BertForSequenceClassificationAdvV2
         model_v2_mnli = modeling.BertForSequenceClassificationAdvV2_mnli

@@ -12,7 +12,7 @@ task = args.task
 # Set the base directory for the datasets
 base_dir = '/projects/p32013/DNABERT-meta/GUE'
 
-dataset_dirs = ["H4"]
+dataset_dirs = ["2", "3"]
 
 # dataset_dirs = ["4"]
 
@@ -103,7 +103,7 @@ for dataset_dir in dataset_dirs:
     f'--model_type {task} ' \
     '--overwrite_cache'
     
-  #os.system(command3)
+  os.system(command3)
   os.system(command4)
   os.system(command5)
   os.system(command6)
