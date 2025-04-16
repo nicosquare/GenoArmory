@@ -31,19 +31,25 @@ from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 
 from transformers import (
-    AutoConfig, AutoTokenizer, BertConfig, WEIGHTS_NAME, 
-    AdamW, get_linear_schedule_with_warmup
+    AutoConfig,
+    AutoTokenizer,
+    BertConfig,
+    WEIGHTS_NAME,
+    AdamW,
+    get_linear_schedule_with_warmup,
 )
 from DNABERT2.bert_layers import DNABertForSequenceClassification
 from DNABERT2.modeling_esm import EsmForSequenceClassification
-from DNABERT2.modeling_esm2 import EsmForSequenceClassification as EsmForSequenceClassification2
+from DNABERT2.modeling_esm2 import (
+    EsmForSequenceClassification as EsmForSequenceClassification2,
+)
 from DNABERT2.modeling_hyena import HyenaDNAForSequenceClassification
 from DNABERT2.modeling_mistral import MistralForSequenceClassification
 
 
 from transformers import glue_processors as processors
 import pdb
-
+import sys
 import torch.cuda.amp as amp
 
 
@@ -82,6 +88,8 @@ def calculate_metric_with_sklearn(logits: np.ndarray, labels: np.ndarray):
 """
 Compute metrics used for huggingface trainer.
 """
+
+
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     if isinstance(logits, tuple):  # Unpack logits if it's a tuple
@@ -266,17 +274,17 @@ def train(args, train_dataset, model, tokenizer, experiment=None):
             batch = tuple(t.to(args.device) for t in batch)
 
             # using adaptive sequence length
-            if args.model_type != 'hyena':
+            if args.model_type != "hyena":
                 max_seq_len = torch.max(torch.sum(batch[1], 1)).item()
                 batch = [t[:, :max_seq_len] for t in batch[:3]] + [batch[3]]
                 if max_seq_len > global_max_seq_len:
                     global_max_seq_len = max_seq_len
 
                 inputs = {"labels": batch[3]}
-            
-                if args.model_type in ["bert", "xlnet", "albert", "dnabert"]:
-                    inputs["token_type_ids"] = batch[2]
-                
+
+                # if args.model_type in ["bert", "xlnet", "albert", "dnabert"]:
+                    #     inputs["token_type_ids"] = batch[2]
+
                 if args.model_type in ["dnabert", "nt1", "nt2", "og"]:
                     inputs["attention_mask"] = batch[1]
             else:
@@ -340,14 +348,16 @@ def train(args, train_dataset, model, tokenizer, experiment=None):
                     seq_length = embeds_init.size(1)
                     if args.norm_type == "l2":
                         delta = torch.zeros_like(embeds_init).uniform_(-1, 1)
-                        dims = torch.tensor(seq_length * embeds_init.size(-1)).to("cuda")
+                        dims = torch.tensor(seq_length * embeds_init.size(-1)).to(
+                            "cuda"
+                        )
                         mag = args.adv_init_mag / torch.sqrt(dims)
                         delta = (delta * mag.view(-1, 1, 1)).detach()
                     elif args.norm_type == "linf":
                         delta = torch.zeros_like(embeds_init).uniform_(
                             -args.adv_init_mag, args.adv_init_mag
                         )
-                
+
             else:
                 delta = torch.zeros_like(embeds_init)
 
@@ -357,8 +367,18 @@ def train(args, train_dataset, model, tokenizer, experiment=None):
                 # (0) forward
                 delta.requires_grad_()
                 inputs["inputs_embeds"] = delta + embeds_init
-                
+
                 inputs["dp_masks"] = dp_masks
+
+                
+                # print(
+                #     embeds_init.shape,
+                #     file=sys.stderr,
+                #     )
+                # print(
+                #     inputs["token_type_ids"].shape,
+                #     file=sys.stderr,
+                # )
 
                 with torch.cuda.amp.autocast():
                     outputs, dp_masks = model(**inputs)
@@ -436,7 +456,7 @@ def train(args, train_dataset, model, tokenizer, experiment=None):
                     if isinstance(model, torch.nn.DataParallel):
                         embeds_init = model.module.esm.get_input_embeddings()(batch[0])
                     else:
-                        embeds_init = model.esm.get_input_embeddings()(batch[0])                
+                        embeds_init = model.esm.get_input_embeddings()(batch[0])
                 elif args.model_type == "og":
                     if isinstance(model, torch.nn.DataParallel):
                         embeds_init = model.module.get_input_embeddings()(batch[0])
@@ -592,7 +612,7 @@ def evaluate(args, model, tokenizer, prefix="", global_step=None, experiment=Non
         for batch in tqdm(eval_dataloader, desc="Evaluating"):
             model.eval()
             batch = tuple(t.to(args.device) for t in batch)
-            if args.model_type != 'hyena':
+            if args.model_type != "hyena":
                 # adaptive seq len
                 max_seq_len = torch.max(torch.sum(batch[1], 1)).item()
                 batch = [t[:, :max_seq_len] for t in batch[:3]] + [batch[3]]
@@ -601,7 +621,7 @@ def evaluate(args, model, tokenizer, prefix="", global_step=None, experiment=Non
                 batch = [t[:, :max_seq_len] for t in batch[:1]] + [batch[1]]
 
             with torch.no_grad():
-                if args.model_type != "hyena":   
+                if args.model_type != "hyena":
                     inputs = {
                         "input_ids": batch[0],
                         "attention_mask": batch[1],
@@ -612,13 +632,12 @@ def evaluate(args, model, tokenizer, prefix="", global_step=None, experiment=Non
                         "input_ids": batch[0],
                         "labels": batch[1],
                     }
-                
+
                 if args.model_type in ["bert", "xlnet", "albert", "dnabert"]:
-                    inputs["token_type_ids"] = batch[2]  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
-                
-                
-                
-                
+                    inputs["token_type_ids"] = batch[
+                        2
+                    ]  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
+
                 outputs = model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
@@ -705,13 +724,22 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
                 truncation=True,
                 return_tensors="pt",
             )
-            if args.model_type!='hyena':
+           
+            if args.model_type == "hyena":
+                features.append(
+                    {
+                        "input_ids": inputs["input_ids"].squeeze(0),
+                        "label": label,
+                    }
+                )
+            elif args.model_type == "dnabert":
                 features.append(
                     {
                         "input_ids": inputs["input_ids"].squeeze(0),
                         "attention_mask": inputs["attention_mask"].squeeze(0),
                         "token_type_ids": inputs.get(
-                            "token_type_ids", torch.zeros_like(inputs["input_ids"])
+                            "token_type_ids",
+                            torch.zeros_like(inputs["input_ids"]),
                         ),
                         "label": label,
                     }
@@ -720,13 +748,18 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
                 features.append(
                     {
                         "input_ids": inputs["input_ids"].squeeze(0),
+                        "attention_mask": inputs["attention_mask"].squeeze(0),
+                        "token_type_ids": inputs.get(
+                            "token_type_ids",
+                            torch.zeros_like(inputs["input_ids"]),
+                        ),
                         "label": label,
                     }
                 )
 
         torch.save(features, cached_features_file)
-    
-    if args.model_type!='hyena':
+
+    if args.model_type != "hyena":
         # Convert to Tensors and build dataset
         all_input_ids = torch.stack([f["input_ids"] for f in features])
         all_attention_mask = torch.stack([f["attention_mask"] for f in features])
@@ -743,9 +776,7 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False):
             [label_list.index(f["label"]) for f in features], dtype=torch.long
         )
 
-        dataset = TensorDataset(
-                all_input_ids,  all_labels
-            )
+        dataset = TensorDataset(all_input_ids, all_labels)
     return dataset
 
 
@@ -955,7 +986,7 @@ def main():
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-    print(1)
+
     if args.comet:
         experiment = Experiment(
             api_key=args.comet_key,
