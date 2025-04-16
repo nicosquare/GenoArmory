@@ -15,9 +15,11 @@ import torch.nn as nn
 from USE import USE_hyena, USE_DNABERT, USE_nt, USE_og
 from NLI_infer_model import NLI_infer_BERT, NLI_infer_Hyena, NLI_infer_NT, NLI_infer_OG
 
+
 def get_tokenized_dna(sequence, tokenizer):
     tokens = tokenizer.tokenize(sequence)
     return tokens
+
 
 def pick_most_similar_words_batch(
     src_words, sim_mat, idx2word, ret_count=10, threshold=0.0
@@ -39,8 +41,6 @@ def pick_most_similar_words_batch(
     return sim_words, sim_values
 
 
-
-
 def attack(
     text_ls,
     true_label,
@@ -55,7 +55,7 @@ def attack(
     synonym_num=50,
     batch_size=32,
     tokenizer=None,
-    choices_threshold = 0.1,
+    choices_threshold=0.1,
 ):
     # first check the prediction of the original text
     if tokenizer:
@@ -65,7 +65,6 @@ def attack(
     orig_label = torch.argmax(orig_probs)
     orig_prob = orig_probs.max()
     if true_label != orig_label:
-        
         return "", 0, orig_label, orig_label, 0
     else:
         len_text = len(text_ls)
@@ -81,7 +80,7 @@ def attack(
             for ii in range(len_text)
         ]
         leave_1_probs = predictor(leave_1_texts, batch_size=batch_size)
-        
+
         num_queries += len(leave_1_texts)
         leave_1_probs_argmax = torch.argmax(leave_1_probs, dim=-1)
         import_scores = (
@@ -116,21 +115,16 @@ def attack(
             word2idx[word] for idx, word in words_perturb if word in word2idx
         ]
 
-        
         synonym_words, _ = pick_most_similar_words_batch(
             words_perturb_idx, cos_sim, idx2word, synonym_num, choices_threshold
         )
         synonyms_all = []
 
-        
         for idx, word in words_perturb:
             if word in word2idx:
                 synonyms = synonym_words.pop(0)
                 if synonyms:
                     synonyms_all.append((idx, synonyms))
-        
-        
-
 
         # start replacing and attacking
         text_prime = text_ls[:]
@@ -367,7 +361,7 @@ def main():
         "--target_model",
         type=str,
         required=True,
-        choices=["nt", "bert", 'hyena', 'og'],
+        choices=["nt", "bert", "hyena", "og"],
     )
     parser.add_argument(
         "--target_model_path",
@@ -446,8 +440,78 @@ def main():
         type=int,
         help="max sequence length for BERT target model",
     )
+    parser.add_argument(
+        "--quantize",
+        action="store_true",
+        help="Whether to quantize the model",
+    )
+    parser.add_argument(
+        "--est_num_batches",
+        type=int,
+        default=10,
+        help="Number of batches to estimate the activation quantization parameters",
+    )
+    parser.add_argument(
+        "--n_bits",
+        type=int,
+        default=8,
+        help="Number of bits for weight quantization",
+    )
+    parser.add_argument(
+        "--n_bits_act",
+        type=int,
+        default=8,
+        help="Number of bits for activation quantization",
+    )
+    parser.add_argument(
+        "--no_weight_quant",
+        action="store_true",
+        help="Whether to disable weight quantization",
+    )
+    parser.add_argument(
+        "--no_act_quant",
+        action="store_true",
+        help="Whether to disable activation quantization",
+    )
+    parser.add_argument(
+        "--ranges_weights",
+        type=str,
+        default="minmax",
+        help="Weight range estimation method",
+    )
+    parser.add_argument(
+        "--ranges_acts",
+        type=str,
+        default="running_minmax",
+        help="Activation range estimation method",
+    )
+    parser.add_argument(
+        "--qmethod_acts",
+        type=str,
+        default="symmetric_uniform",
+        help="Activation quantization method",
+    )
+    parser.add_argument(
+        "--percentile",
+        type=float,
+        default=None,
+        help="Percentile for activation quantization",
+    )
 
-    parser.add_argument('--choices_threshold', default=0.1, type=float)
+    parser.add_argument(
+        "--train_file",
+        type=str,
+        default="",
+        help="Path to the training data file",
+    )
+    parser.add_argument(
+        "--preprocessing_num_workers",
+        type=int,
+        default=4,
+        help="Number of processes to use for the preprocessing.",
+    )
+
+    parser.add_argument("--choices_threshold", default=0.1, type=float)
 
     args = parser.parse_args()
 
@@ -483,6 +547,7 @@ def main():
             args.target_model_path,
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
+            args=args,
         )
         use = USE_DNABERT(model.tokenizer, model.model)
     elif args.target_model == "hyena":
@@ -543,8 +608,6 @@ def main():
         cos_sim = product / np.dot(norm, norm.T)
     # print("Cos sim import finished!")
 
-    
-
     # start attacking
     orig_failures = 0.0
     adv_failures = 0.0
@@ -573,7 +636,7 @@ def main():
                 sim_score_window=args.sim_score_window,
                 synonym_num=args.synonym_num,
                 batch_size=args.batch_size,
-                choices_threshold = args.choices_threshold,
+                choices_threshold=args.choices_threshold,
             )
         else:
             new_text, num_changed, orig_label, new_label, num_queries = attack(
@@ -590,7 +653,7 @@ def main():
                 synonym_num=args.synonym_num,
                 batch_size=args.batch_size,
                 tokenizer=model.dataset.tokenizer,
-                choices_threshold = args.choices_threshold,
+                choices_threshold=args.choices_threshold,
             )
 
         if true_label != orig_label:
