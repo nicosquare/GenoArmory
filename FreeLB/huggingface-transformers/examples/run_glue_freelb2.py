@@ -282,8 +282,8 @@ def train(args, train_dataset, model, tokenizer, experiment=None):
 
                 inputs = {"labels": batch[3]}
 
-                # if args.model_type in ["bert", "xlnet", "albert", "dnabert"]:
-                    #     inputs["token_type_ids"] = batch[2]
+                if args.model_type in ["bert", "xlnet", "albert"]:
+                        inputs["token_type_ids"] = batch[2]
 
                 if args.model_type in ["dnabert", "nt1", "nt2", "og"]:
                     inputs["attention_mask"] = batch[1]
@@ -633,7 +633,7 @@ def evaluate(args, model, tokenizer, prefix="", global_step=None, experiment=Non
                         "labels": batch[1],
                     }
 
-                if args.model_type in ["bert", "xlnet", "albert", "dnabert"]:
+                if args.model_type in ["bert", "xlnet", "albert"]:
                     inputs["token_type_ids"] = batch[
                         2
                     ]  # XLM, DistilBERT, RoBERTa, and XLM-RoBERTa don't use segment_ids
