@@ -22,7 +22,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutput,
 )
 from transformers.modeling_utils import ModuleUtilsMixin, apply_chunking_to_forward
-from DNABERT2.bert_layers import (
+from .bert_layers import (
     BertLayer,
     BertUnpadSelfAttention,
     BertSelfOutput,

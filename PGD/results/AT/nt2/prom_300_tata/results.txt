@@ -1,0 +1,2 @@
+Final Accuracy: 0.7419
+Average Metrics: {'accuracy': 0.74375, 'f1': 0.7304011777695989, 'matthews_correlation': 0.4675901479687106, 'precision': 0.7416666666666667, 'recall': 0.7261904761904762}

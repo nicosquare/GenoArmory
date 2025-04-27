@@ -7,22 +7,152 @@
 
 import warnings
 import os
+import csv
 import random
+import transformers
 import torch
 import torch.nn as nn
 import json
-from torch.utils.data import DataLoader, SequentialSampler, TensorDataset
+from torch.utils.data import DataLoader, SequentialSampler, TensorDataset, Dataset
 from transformers import BertConfig, AutoConfig, EsmConfig, AutoTokenizer
 from transformers import AutoModelForSequenceClassification, EsmForSequenceClassification, AutoModelForMaskedLM
 import copy
 import argparse
 import numpy as np
 
+from quantization.range_estimators import OptMethod, RangeEstimators
+from transformers_language.args import parse_args
+from transformers_language.models.bert_attention import (
+    AttentionGateType,
+    EsmSelfAttentionwithExtra,
+    Q4bitBertUnpadSelfAttentionWithExtras,
+
+)
+from transformers_language.models.quantized_dnabert import QuantizedBertForSequenceClassification
+from transformers_language.models.quantized_nt import QuantizedEsmForSequenceClassification
+
+from transformers_language.models.softmax import SOFTMAX_MAPPING
+from transformers_language.quant_configs import get_quant_config
+from transformers_language.utils import (
+    count_params,
+    kurtosis,
+    pass_data_for_range_estimation,
+    val_qparams,
+)
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Sequence, Tuple, List
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 filter_words = []
 filter_words = set(filter_words)
+
+
+
+
+
+"""
+Load or generate k-mer string for each DNA sequence. The generated k-mer string will be saved to the same directory as the original data with the same name but with a suffix of "_{k}mer".
+"""
+def load_or_generate_kmer(data_path: str, texts: List[str], k: int) -> List[str]:
+    """Load or generate k-mer string for each DNA sequence."""
+    kmer_path = data_path.replace(".csv", f"_{k}mer.json")
+    if os.path.exists(kmer_path):
+        with open(kmer_path, "r") as f:
+            kmer = json.load(f)
+    else:        
+        kmer = [generate_kmer_str(text, k) for text in texts]
+        with open(kmer_path, "w") as f:
+            json.dump(kmer, f)
+        
+    return kmer
+
+"""
+Transform a dna sequence to k-mer string
+"""
+def generate_kmer_str(sequence: str, k: int) -> str:
+    """Generate k-mer string from DNA sequence."""
+    return " ".join([sequence[i:i+k] for i in range(len(sequence) - k + 1)])
+
+
+
+class SupervisedDataset(Dataset):
+    """Dataset for supervised fine-tuning."""
+
+    def __init__(self, 
+                 data_path: str, 
+                 tokenizer: transformers.PreTrainedTokenizer, 
+                 kmer: int = -1):
+
+        super(SupervisedDataset, self).__init__()
+
+        # load data from the disk
+        with open(data_path, "r") as f:
+            data = list(csv.reader(f))[1:]
+        if len(data[0]) == 2:
+            # data is in the format of [text, label]
+            texts = [d[0] for d in data]
+            labels = [int(d[1]) for d in data]
+        elif len(data[0]) == 3:
+            # data is in the format of [text1, text2, label]
+            texts = [[d[0], d[1]] for d in data]
+            labels = [int(d[2]) for d in data]
+        else:
+            raise ValueError("Data format not supported.")
+        
+        if kmer != -1:
+            # only write file on the first process
+            if torch.distributed.get_rank() not in [0, -1]:
+                torch.distributed.barrier()
+
+            texts = load_or_generate_kmer(data_path, texts, kmer)
+
+            if torch.distributed.get_rank() == 0:
+                torch.distributed.barrier()
+
+        output = tokenizer(
+            texts,
+            return_tensors="pt",
+            padding="longest",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        )
+
+        self.input_ids = output["input_ids"]
+        self.attention_mask = output["attention_mask"]
+        self.labels = labels
+        self.num_labels = len(set(labels))
+
+    def __len__(self):
+        return len(self.input_ids)
+
+    def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        return dict(input_ids=self.input_ids[i], labels=self.labels[i])
+
+@dataclass
+class DataCollatorForSupervisedDataset(object):
+    """Collate examples for supervised fine-tuning."""
+
+    tokenizer: transformers.PreTrainedTokenizer
+
+    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
+        input_ids = torch.nn.utils.rnn.pad_sequence(
+            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
+        )
+        labels = torch.Tensor(labels).long()
+        return dict(
+            input_ids=input_ids,
+            labels=labels,
+            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+        )
+
+
+
+
+
+
 
 
 def divide_dna_sequence(sequence, min_len=1, max_len=50):
@@ -465,6 +595,55 @@ def run_attack():
     parser.add_argument("--threshold_pred_score", type=float, )
 
 
+    parser.add_argument(
+        "--attn_softmax",
+        type=str,
+        default="vanilla",
+        help="Softmax variation to use in attention module.",
+        choices=SOFTMAX_MAPPING.keys(),
+    )
+    parser.add_argument("--quantize", action="store_true")
+    parser.add_argument("--est_num_batches", type=int, default=16)
+    parser.add_argument("--n_bits", type=int, default=8)
+    parser.add_argument("--n_bits_act", type=int, default=8)
+    parser.add_argument("--no_weight_quant", action="store_true")
+    parser.add_argument("--no_act_quant", action="store_true")
+    parser.add_argument("--qmethod_acts", type=str, default="asymmetric_uniform")
+    parser.add_argument("--ranges_weights", type=str, default="minmax")
+    parser.add_argument("--ranges_acts", type=str, default="running_minmax")
+    parser.add_argument(
+        "--percentile", type=float, default=None, help="Percentile (in %) for range estimation."
+    )
+    parser.add_argument("--quant_setup", type=str, default="all")
+
+    parser.add_argument(
+        "--per_device_train_batch_size",
+        type=int,
+        default=64,
+        help="Batch size (per device) for the training dataloader.",
+    )
+
+    parser.add_argument(
+        "--preprocessing_num_workers",
+        type=int,
+        default=8,
+        help="The number of processes to use for the preprocessing.",
+    )
+
+    parser.add_argument(
+        '--max_seq_length',
+        type=int,
+        default=512,
+    )
+
+    parser.add_argument(
+        "--train_file",
+        type=str,
+        default=None,
+        help="Path to a training file. If not provided, the training set will be split from the validation set.",
+    )
+
+
     args = parser.parse_args()
     data_path = str(args.data_path)
     mlm_path = str(args.mlm_path)
@@ -486,7 +665,10 @@ def run_attack():
         use_fast=True,
         trust_remote_code=True
     )
-    tokenizer_tgt = AutoTokenizer.from_pretrained(tgt_path, trust_remote_code=True,)
+    try:
+        tokenizer_tgt = AutoTokenizer.from_pretrained(tgt_path, trust_remote_code=True,)
+    except:
+        tokenizer_tgt = AutoTokenizer.from_pretrained(mlm_path, trust_remote_code=True,)
 
     config_atk = BertConfig.from_pretrained(mlm_path)
     
@@ -495,6 +677,113 @@ def run_attack():
 
     config_tgt = AutoConfig.from_pretrained(tgt_path, num_labels=num_label, trust_remote_code=True,)
     tgt_model = AutoModelForSequenceClassification.from_pretrained(tgt_path, config=config_tgt, trust_remote_code=True,)
+    
+
+    for layer_idx in range(len(tgt_model.esm.encoder.layer)):
+        old_self = tgt_model.esm.encoder.layer[layer_idx].attention.self
+        print("----------------------------------------------------------")
+        print("Inside BERT custom attention")
+        print("----------------------------------------------------------")
+        new_self = EsmSelfAttentionwithExtra(
+            config_tgt,
+            position_embedding_type=None,
+            softmax_fn=SOFTMAX_MAPPING[args.attn_softmax],
+        )
+
+        # copy loaded weights
+        if tgt_path is not None:
+            new_self.load_state_dict(old_self.state_dict(), strict=False)
+        tgt_model.esm.encoder.layer[layer_idx].attention.self = new_self
+
+    embedding_size = tgt_model.get_input_embeddings().weight.shape[0]
+    if len(tokenizer_tgt) > embedding_size:
+        print("Resizing token embeddings to fit tokenizer vocab size")
+        tgt_model.resize_token_embeddings(len(tokenizer_tgt))
+
+    
+    
+    # Quantize:
+    if args.quantize:
+        train_dataset = SupervisedDataset(tokenizer=tokenizer_tgt, 
+                                          data_path=args.train_file, 
+                                          kmer=-1)
+        data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer_tgt)
+        
+        train_dataloader = DataLoader(
+            train_dataset,
+            shuffle=True,
+            collate_fn=data_collator,
+            batch_size=args.per_device_train_batch_size,
+            num_workers=args.preprocessing_num_workers,
+        )
+        click_config = get_quant_config()
+
+        # override number of batches
+        click_config.act_quant.num_batches = args.est_num_batches
+        click_config.quant.n_bits = args.n_bits
+        click_config.quant.n_bits_act = args.n_bits_act
+        if args.no_weight_quant:
+            click_config.quant.weight_quant = False
+        if args.no_act_quant:
+            click_config.quant.act_quant = False
+
+        # Weight Ranges
+        if args.ranges_weights == "minmax":
+            pass
+        elif args.ranges_weights in ("mse", "MSE"):
+            click_config.quant.weight_quant_method = RangeEstimators.MSE
+            click_config.quant.weight_opt_method = OptMethod.grid
+        else:
+            raise ValueError(f"Unknown weight range estimation: {args.ranges_weights}")
+
+        # Acts ranges
+        if args.percentile is not None:
+            click_config.act_quant.options["percentile"] = args.percentile
+
+        if args.ranges_acts == "running_minmax":
+            click_config.act_quant.quant_method = RangeEstimators.running_minmax
+
+        elif args.ranges_acts == "MSE":
+            click_config.act_quant.quant_method = RangeEstimators.MSE
+            if args.qmethod_acts == "symmetric_uniform":
+                click_config.act_quant.options = dict(opt_method=OptMethod.grid)
+            elif args.qmethod_acts == "asymmetric_uniform":
+                click_config.act_quant.options = dict(opt_method=OptMethod.golden_section)
+
+        elif args.ranges_acts.startswith("L"):
+            click_config.act_quant.quant_method = RangeEstimators.Lp
+            p_norm = float(args.ranges_acts.replace("L", ""))
+            options = dict(p_norm=p_norm)
+            if args.qmethod_acts == "symmetric_uniform":
+                options["opt_method"] = OptMethod.grid
+            elif args.qmethod_acts == "asymmetric_uniform":
+                options["opt_method"] = OptMethod.golden_section
+            click_config.act_quant.options = options
+
+        else:
+            raise NotImplementedError(f"Unknown act range estimation setting, '{args.ranges_acts}'")
+
+        qparams = val_qparams(click_config)
+        qparams["quant_dict"] = {}
+
+        tgt_model = QuantizedEsmForSequenceClassification(tgt_model, **qparams)
+        tgt_model.set_quant_state(
+            weight_quant=click_config.quant.weight_quant, act_quant=click_config.quant.act_quant
+        )
+
+        # Range estimation
+        pass_data_for_range_estimation(
+            loader=train_dataloader,
+            model=tgt_model,
+            act_quant=click_config.quant.act_quant,
+            max_num_batches=click_config.act_quant.num_batches,
+        )
+        tgt_model.fix_ranges()
+        tgt_model.set_quant_state(
+            weight_quant=click_config.quant.weight_quant, act_quant=click_config.quant.act_quant
+        )
+
+
 
     tgt_model.to('cuda')
     features = get_data_cls(data_path)

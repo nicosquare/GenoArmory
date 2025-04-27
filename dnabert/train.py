@@ -54,7 +54,7 @@ class TrainingArguments(transformers.TrainingArguments):
     warmup_steps: int = field(default=50)
     weight_decay: float = field(default=0.01)
     learning_rate: float = field(default=1e-4)
-    save_total_limit: int = field(default=3)
+    save_total_limit: int = field(default=1)
     load_best_model_at_end: bool = field(default=True)
     output_dir: str = field(default="output")
     find_unused_parameters: bool = field(default=False)

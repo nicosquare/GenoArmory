@@ -139,7 +139,7 @@ class DataCollatorForSupervisedDataset(object):
 
 
 class NLI_infer_Hyena(nn.Module):
-    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32, tokenizer_path=None):
         super(NLI_infer_Hyena, self).__init__()
         self.model_config = AutoConfig.from_pretrained(
             pretrained_dir, num_labels=nclasses, trust_remote_code=True
@@ -150,7 +150,7 @@ class NLI_infer_Hyena(nn.Module):
 
         # construct dataset loader
         self.dataset = NLIDataset_Hyena(
-            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size
+            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size, tokenizer_path=tokenizer_path
         )
         self.tokenizer = self.dataset.tokenizer
 
@@ -175,7 +175,7 @@ class NLI_infer_Hyena(nn.Module):
 
 
 class NLI_infer_NT(nn.Module):
-    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32, tokenizer_path=None):
         super(NLI_infer_NT, self).__init__()
         self.model_config = AutoConfig.from_pretrained(
             pretrained_dir, num_labels=nclasses
@@ -186,7 +186,7 @@ class NLI_infer_NT(nn.Module):
 
         # construct dataset loader
         self.dataset = NLIDataset_NT(
-            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size
+            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size, tokenizer_path=tokenizer_path
         )
         self.tokenizer = self.dataset.tokenizer
 
@@ -213,7 +213,7 @@ class NLI_infer_NT(nn.Module):
 
 class NLI_infer_BERT(nn.Module):
     def __init__(
-        self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32, args=None
+        self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32, args=None, tokenizer_path=None
     ):
         super(NLI_infer_BERT, self).__init__()
         self.model_config = BertConfig.from_pretrained(
@@ -225,7 +225,7 @@ class NLI_infer_BERT(nn.Module):
 
         # construct dataset loader
         self.dataset = NLIDataset_BERT(
-            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size
+            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size, tokenizer_path=tokenizer_path
         )
         self.tokenizer = self.dataset.tokenizer
 
@@ -339,7 +339,7 @@ class NLI_infer_BERT(nn.Module):
 
 
 class NLI_infer_OG(nn.Module):
-    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, nclasses, max_seq_length=128, batch_size=32, tokenizer_path=None):
         super(NLI_infer_OG, self).__init__()
         self.model_config = AutoConfig.from_pretrained(
             pretrained_dir, num_labels=nclasses
@@ -350,7 +350,7 @@ class NLI_infer_OG(nn.Module):
 
         # construct dataset loader
         self.dataset = NLIDataset_OG(
-            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size
+            pretrained_dir, max_seq_length=max_seq_length, batch_size=batch_size, tokenizer_path=tokenizer_path
         )
         self.tokenizer = self.dataset.tokenizer
 

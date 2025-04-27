@@ -22,8 +22,8 @@ for task in "${tasks[@]}"; do
         --learning_rate 3e-5 \
         --num_train_epochs 4 \
         --fp16 \
-        --save_steps 10000 \
-        --output_dir "output_pipe/${task}/textfooler" \
+        --save_steps 200 \
+        --output_dir "/scratch/hlv8980/Attack_Benchmark/models/dnabert/${task}/textfooler" \
         --evaluation_strategy steps \
         --eval_steps 200 \
         --warmup_ratio 0.05 \

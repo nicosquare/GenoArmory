@@ -3,8 +3,8 @@
 import copy
 
 import torch
-from timm.models.layers import Swish
-from timm.models.layers.activations_me import SwishMe
+from timm.layers import Swish
+from timm.layers.activations_me import SwishMe
 from torch import nn
 
 from quantization.base_quantized_classes import QuantizedModule

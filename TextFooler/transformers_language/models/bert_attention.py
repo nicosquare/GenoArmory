@@ -11,7 +11,7 @@ from torch import nn
 from einops import rearrange
 from quantization.utils import BaseEnumOptions
 from transformers_language.models.softmax import clipped_softmax
-from bert_padding import (index_first_axis,
+from transformers_language.models.bert_padding import (index_first_axis,
                                             index_put_first_axis, pad_input,
                                             unpad_input, unpad_input_only)
 from bitsandbytes.nn.modules import Linear8bitLt, Linear4bit

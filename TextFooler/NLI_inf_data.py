@@ -16,7 +16,7 @@ class InputFeatures(object):
 class NLIDataset_Hyena(Dataset):
 
 
-    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32, tokenizer_path=None):
         """
         Args:
             data: A dictionary containing the preprocessed premises,
@@ -33,13 +33,23 @@ class NLIDataset_Hyena(Dataset):
                 Defaults to None.
         """
         self.max_seq_length = max_seq_length
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_dir,
-            model_max_length=self.max_seq_length,
-            padding_side="right",
-            use_fast=True,
-            trust_remote_code=True,
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                pretrained_dir,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
+        except:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                tokenizer_path,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
+            
 
         self.batch_size = batch_size
 
@@ -108,7 +118,7 @@ class NLIDataset_Hyena(Dataset):
 class NLIDataset_NT(Dataset):
 
 
-    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32, tokenizer_path=None):
         """
         Args:
             data: A dictionary containing the preprocessed premises,
@@ -125,13 +135,22 @@ class NLIDataset_NT(Dataset):
                 Defaults to None.
         """
         self.max_seq_length = max_seq_length
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_dir,
-            model_max_length=self.max_seq_length,
-            padding_side="right",
-            use_fast=True,
-            trust_remote_code=True,
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                pretrained_dir,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
+        except:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                tokenizer_path,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
 
         self.batch_size = batch_size
 
@@ -201,7 +220,8 @@ class NLIDataset_BERT(Dataset):
     def __init__(self,
                  pretrained_dir,
                  max_seq_length=128,
-                 batch_size=32):
+                 batch_size=32,
+                 tokenizer_path=None):
         """
         Args:
             data: A dictionary containing the preprocessed premises,
@@ -218,12 +238,18 @@ class NLIDataset_BERT(Dataset):
                 Defaults to None.
         """
         self.max_seq_length = max_seq_length
-        self.tokenizer  = AutoTokenizer.from_pretrained(pretrained_dir, 
-                                                        model_max_length=self.max_seq_length,
-                                                        padding_side="right",
-                                                        use_fast=True,
-                                                        trust_remote_code=True)
-        
+        try:
+            self.tokenizer  = AutoTokenizer.from_pretrained(pretrained_dir, 
+                                                            model_max_length=self.max_seq_length,
+                                                            padding_side="right",
+                                                            use_fast=True,
+                                                            trust_remote_code=True)
+        except:
+            self.tokenizer  = AutoTokenizer.from_pretrained(tokenizer_path, 
+                                                            model_max_length=self.max_seq_length,
+                                                            padding_side="right",
+                                                            use_fast=True,
+                                                            trust_remote_code=True)
         self.batch_size = batch_size
 
     def convert_examples_to_features(self, examples, max_seq_length, tokenizer):
@@ -288,7 +314,7 @@ class InputFeatures(object):
 
 
 class NLIDataset_OG(Dataset):
-    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32):
+    def __init__(self, pretrained_dir, max_seq_length=128, batch_size=32, tokenizer_path=None):
         """
         Args:
             data: A dictionary containing the preprocessed premises,
@@ -305,13 +331,22 @@ class NLIDataset_OG(Dataset):
                 Defaults to None.
         """
         self.max_seq_length = max_seq_length
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            pretrained_dir,
-            model_max_length=self.max_seq_length,
-            padding_side="right",
-            use_fast=True,
-            trust_remote_code=True,
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                pretrained_dir,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
+        except:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                tokenizer_path,
+                model_max_length=self.max_seq_length,
+                padding_side="right",
+                use_fast=True,
+                trust_remote_code=True,
+            )
 
         self.batch_size = batch_size
 

@@ -428,16 +428,22 @@ def shap_attack_mp(args): # this is a self contained function that can be run in
             else:
                 vector_id = id_neg[1][0]
                 a0 = row_pooled
-                a1 = fps_data_pooled[vector_id]
+                try:
+                    if vector_id < len(fns_data_pooled) and len(fns_data_pooled) > 0:
+                        a1 = fps_data_pooled[vector_id]
+                    else:
+                        continue  # Skip if vector_id is out of bounds
 
-                
-                a0_val = a0
-                a1_val = a1
-                # Increase the interpolation range to make more significant changes
-                sample_space = np.linspace(a0_val, a1_val, precision)
-                # Take the last value in the interpolation to make more significant changes
-                x_copy[index] = torch.from_numpy(sample_space[-1]).to(x_copy.device)
-                # print(f"Feature: {feature} | Original vector value: {a0_val} | Closest FP vector value {a1_val} | Sample space: {sample_space[-2]}")
+                        
+                    a0_val = a0
+                    a1_val = a1
+                    # Increase the interpolation range to make more significant changes
+                    sample_space = np.linspace(a0_val, a1_val, precision)
+                    # Take the last value in the interpolation to make more significant changes
+                    x_copy[index] = torch.from_numpy(sample_space[-1]).to(x_copy.device)
+                    # print(f"Feature: {feature} | Original vector value: {a0_val} | Closest FP vector value {a1_val} | Sample space: {sample_space[-2]}")
+                except:
+                    continue
 
         if increase_fn:
             if index in one_idx_test:  # positive labels or 1

@@ -100,7 +100,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--model_type",
-    default='bert',
+    default='',
     type=str,
 )
 

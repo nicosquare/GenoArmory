@@ -370,6 +370,11 @@ def main():
         help="pre-trained target model path",
     )
     parser.add_argument(
+        "--tokenizer_path",
+        type=str,
+        help="pre-trained target model path",
+    )
+    parser.add_argument(
         "--word_embeddings_path",
         type=str,
         default="",
@@ -548,6 +553,7 @@ def main():
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
             args=args,
+            tokenizer_path=args.tokenizer_path
         )
         use = USE_DNABERT(model.tokenizer, model.model)
     elif args.target_model == "hyena":
@@ -555,13 +561,15 @@ def main():
             args.target_model_path,
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
+            tokenizer_path = args.tokenizer_path
         )
         use = USE_hyena(model.tokenizer, model.model)
     elif args.target_model == "nt":
-        model = NLI_infer_Hyena(
+        model = NLI_infer_NT(
             args.target_model_path,
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
+            tokenizer_path=args.tokenizer_path
         )
         # build the semantic similarity module
         use = USE_nt(model.tokenizer, model.model)
@@ -570,6 +578,7 @@ def main():
             args.target_model_path,
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
+            tokenizer_path=args.tokenizer_path
         )
         # build the semantic similarity module
         use = USE_og(model.tokenizer, model.model)

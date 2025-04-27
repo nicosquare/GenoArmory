@@ -268,6 +268,8 @@ if __name__ == '__main__':
     
     parser.add_argument('--num_label', type=int)
     parser.add_argument('--dataset_name', type=str, default='0')
+    parser.add_argument("--shap_output_file", type=str, required=True)
+
 
     args = parser.parse_args()
 
@@ -420,7 +422,10 @@ if __name__ == '__main__':
                     data=vis_dataset.values,
                     feature_names=vis_dataset.columns)
     print('Saving SHAP values...\n')
-    with open('shap_dicts/shap_'+args.model_type+'_fimba_'+args.dataset_name+'.pkl', 'wb') as f:
+    # with open('shap_dicts/shap_'+args.model_type+'_fimba_'+args.dataset_name+'.pkl', 'wb') as f:
+    #     pickle.dump(exp_model, f)
+    # update the seving path
+    with open(args.shap_output_file, 'wb') as f:
         pickle.dump(exp_model, f)
 
 

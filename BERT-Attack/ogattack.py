@@ -486,7 +486,10 @@ def run_attack():
         use_fast=True,
         trust_remote_code=True
     )
-    tokenizer_tgt = AutoTokenizer.from_pretrained(tgt_path, trust_remote_code=True,)
+    try:
+        tokenizer_tgt = AutoTokenizer.from_pretrained(tgt_path, trust_remote_code=True,)
+    except:
+        tokenizer_tgt = AutoTokenizer.from_pretrained(mlm_path, trust_remote_code=True,)
 
     config_atk = BertConfig.from_pretrained(mlm_path)
     
