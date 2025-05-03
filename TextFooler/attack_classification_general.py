@@ -446,6 +446,11 @@ def main():
         help="max sequence length for BERT target model",
     )
     parser.add_argument(
+        "--attn_softmax",
+        default='vanilla',
+        type=str
+    )
+    parser.add_argument(
         "--quantize",
         action="store_true",
         help="Whether to quantize the model",
@@ -569,7 +574,8 @@ def main():
             args.target_model_path,
             nclasses=args.nclasses,
             max_seq_length=args.max_seq_length,
-            tokenizer_path=args.tokenizer_path
+            tokenizer_path=args.tokenizer_path,
+            args=args
         )
         # build the semantic similarity module
         use = USE_nt(model.tokenizer, model.model)

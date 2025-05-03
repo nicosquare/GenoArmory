@@ -12,7 +12,7 @@ tasks=("H3" "H3K14ac" "H3K36me3" "H3K4me1" "H3K4me2" "H3K4me3" "H3K79me3" "H3K9a
 for task in "${tasks[@]}"; do
     python train.py \
         --model_name_or_path "zhihan1996/DNABERT-2-117M" \
-        --data_path "/projects/p32013/DNABERT-meta/GUE/${task}/textfooler" \
+        --data_path "/projects/p32013/DNABERT-meta/GUE/${task}/all" \
         --kmer -1 \
         --run_name "hyena_dna_${task}" \
         --model_max_length 256 \
@@ -23,7 +23,7 @@ for task in "${tasks[@]}"; do
         --num_train_epochs 4 \
         --fp16 \
         --save_steps 200 \
-        --output_dir "/scratch/hlv8980/Attack_Benchmark/models/dnabert/${task}/textfooler" \
+        --output_dir "/scratch/hlv8980/Attack_Benchmark/models/dnabert/${task}/all" \
         --evaluation_strategy steps \
         --eval_steps 200 \
         --warmup_ratio 0.05 \

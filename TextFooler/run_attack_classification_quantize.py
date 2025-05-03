@@ -63,7 +63,8 @@ command_template = 'python attack_classification_general.py --dataset_path {data
                    '--counter_fitting_embeddings_path /projects/p32013/DNABERT-meta/TextFooler/embeddings/subword_{model}_embeddings.txt ' \
                    '--counter_fitting_cos_sim_path /projects/p32013/DNABERT-meta/TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{model}.npy ' \
                    '--USE_cache_path /projects/p32013/DNABERT-meta/TextFooler/tf_cache ' \
-                   '--nclasses 2 --quantize'
+                   '--nclasses 2 --quantize ' \
+                   '--train_file {train_path}'
 
 # Set the base directory for the datasets
 base_dir = '/projects/p32013/DNABERT-meta/GUE'
@@ -78,13 +79,14 @@ dataset_dirs = ["H3", "H3K14ac", "H3K36me3", "H3K4me1", "H3K4me2", "H3K4me3", "H
 # Loop over each dataset directory
 for dataset_dir in dataset_dirs:
     dataset_path = os.path.join(base_dir, dataset_dir, 'cat.csv')
+    train_path=os.path.join(base_dir, dataset_dir, 'train.csv')
     target_model_path = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{dataset_dir}/origin"
 
     # Check if the dataset file exists
     if os.path.exists(dataset_path):
         # Format the command with the current dataset and target model path
         print(f"Dataset file found:{dataset_path}")
-        command = command_template.format(dataset_path=dataset_path, dataset_dir=dataset_dir, target_model_path=target_model_path, model=model)
+        command = command_template.format(dataset_path=dataset_path, dataset_dir=dataset_dir, target_model_path=target_model_path, model=model, train_path=train_path)
         
         # Run the command using subprocess for better control
         subprocess.run(command, shell=True, check=True)

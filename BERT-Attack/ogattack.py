@@ -497,8 +497,9 @@ def run_attack():
     mlm_model.to('cuda')
 
     config_tgt = AutoConfig.from_pretrained(tgt_path, num_labels=num_label, trust_remote_code=True,)
+    
     tgt_model = AutoModelForSequenceClassification.from_pretrained(tgt_path, config=config_tgt, trust_remote_code=True,)
-
+    
     tgt_model.to('cuda')
     features = get_data_cls(data_path)
     print('loading sim-embed')

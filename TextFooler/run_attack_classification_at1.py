@@ -56,7 +56,7 @@ import subprocess
 
 # Define the base command template
 command_template = 'python attack_classification_general.py --dataset_path {dataset_path} ' \
-                   '--target_model nt ' \
+                   '--target_model hyena ' \
                    '--target_model_path {target_model_path} ' \
                    '--output_dir /projects/p32013/DNABERT-meta/TextFooler/output/AT/{model}/{dataset_dir} ' \
                    '--max_seq_length 256 --batch_size 128 ' \
@@ -67,13 +67,15 @@ command_template = 'python attack_classification_general.py --dataset_path {data
 
 # Set the base directory for the datasets
 base_dir = '/projects/p32013/DNABERT-meta/GUE'
-model = 'nt2'
+model = 'hyena'
 # dataset_dirs = ["H3", "H3K14ac", "H3K36me3", "H3K4me1", "H3K4me2", "H3K4me3", "H3K79me3", 
 #                 "H3K9ac", "H4", "H4ac", "prom_core_all", "prom_core_notata", "prom_core_tata", 
 #                 "prom_300_all", "prom_300_notata", "prom_300_tata", "tf0", "tf1", "tf2", 
 #                 "tf3", "tf4", "0", "1", "2", "3", "4"]
 
-dataset_dirs = ["0", "1", "2", "3", "4"]
+dataset_dirs = ["H3", "H3K14ac", "H3K36me3", "H3K4me1", "H3K4me2", "H3K4me3", "H3K79me3", 
+                "H3K9ac", "H4", "H4ac", "prom_core_all", "prom_core_notata", "prom_core_tata", 
+                "prom_300_all", "prom_300_notata", "prom_300_tata"]
 
 # dataset_dirs = ["0"]
 
@@ -81,7 +83,7 @@ dataset_dirs = ["0", "1", "2", "3", "4"]
 for dataset_dir in dataset_dirs:
     dataset_path = os.path.join(base_dir, dataset_dir, 'five_percent/cat.csv')
     target_model_path = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{dataset_dir}/textfooler"
-
+    
     # Check if the dataset file exists
     if os.path.exists(dataset_path):
         # Format the command with the current dataset and target model path

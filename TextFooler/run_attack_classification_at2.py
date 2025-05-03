@@ -73,7 +73,7 @@ model = 'og'
 #                 "prom_300_all", "prom_300_notata", "prom_300_tata", "tf0", "tf1", "tf2", 
 #                 "tf3", "tf4", "0", "1", "2", "3", "4"]
 
-dataset_dirs = [ "prom_300_all", "prom_300_notata"]
+dataset_dirs = ["prom_300_tata"]
 
 # dataset_dirs = ["0"]
 

@@ -12,7 +12,7 @@ tasks=("H3" "H3K14ac" "H3K36me3" "H3K4me1" "H3K4me2" "H3K4me3" "H3K79me3" "H3K9a
 for task in "${tasks[@]}"; do
     python train.py \
         --model_name_or_path "zhihan1996/DNABERT-2-117M" \
-        --data_path "/projects/p32013/DNABERT-meta/GUE/${task}/self" \
+        --data_path "/projects/p32013/DNABERT-meta/GUE/${task}/all" \
         --kmer -1 \
         --run_name "hyena_dna_${task}" \
         --model_max_length 256 \
