@@ -1,23 +1,17 @@
+
 <div align="center">
   <img src="asserts/logo.jpg" alt="Image" />
 </div>
 
-
+<div align="center">
 <p align="center">
     <p align="center">A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
     <br>
 </p>
 
 
-
-<h4 align="center">
-    <a href="" target="_blank">Paper</a> |
-    <a href="https://huggingface.co/datasets/magicslabnu/GFM-Attack" target="_blank">Datasets</a> |
-    <a href="https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b" target="_blank">Pretrained Checkpoints</a>
-</h4>
-
-
-
+[![arXiv](https://img.shields.io/badge/arXiv-GenoArmory-ff0000.svg?style=for-the-badge)](https://github.com/MAGICS-LAB/GenoArmory)  [![Github](https://img.shields.io/badge/GenoArmory-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MAGICS-LAB/GenoArmory)  [![Hugging Face Pretrained](https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md-dark.svg)](https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b) [![Hugging Face Dataset](https://huggingface.co/datasets/huggingface/badges/resolve/main/dataset-on-hf-md.svg)](https://huggingface.co/datasets/magicslabnu/GenoAdv) 
+</div>
 
 ## Installation
 
