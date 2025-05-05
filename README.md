@@ -9,14 +9,7 @@
 </p>
 
 
-
-<h4 align="center">
-    <a href="" target="_blank">Paper</a> |
-    <a href="https://huggingface.co/datasets/magicslabnu/GFM-Attack" target="_blank">Datasets</a> |
-    <a href="https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b" target="_blank">Pretrained Checkpoints</a>
-</h4>
-
-
+[![arXiv](https://img.shields.io/badge/arXiv-GenoArmory-ff0000.svg?style=for-the-badge)](https://github.com/MAGICS-LAB/GenoArmory)  [![Github](https://img.shields.io/badge/GenoArmory-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MAGICS-LAB/GenoArmory)  [![Hugging Face Pretrained](https://img.shields.io/badge/hugging_face-pretrained-purple)](https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b) [![Hugging Face Dataset](https://img.shields.io/badge/hugging_face-dataset-green)](https://huggingface.co/datasets/magicslabnu/GenoAdv) 
 
 
 ## Installation
