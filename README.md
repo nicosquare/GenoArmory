@@ -1,8 +1,9 @@
+
 <div align="center">
   <img src="asserts/logo.jpg" alt="Image" />
 </div>
 
-
+<div align="center">
 <p align="center">
     <p align="center">A comprehensive toolkit for DNA sequence Adversarial Attack and Defense Benchmark.
     <br>
@@ -10,7 +11,7 @@
 
 
 [![arXiv](https://img.shields.io/badge/arXiv-GenoArmory-ff0000.svg?style=for-the-badge)](https://github.com/MAGICS-LAB/GenoArmory)  [![Github](https://img.shields.io/badge/GenoArmory-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/MAGICS-LAB/GenoArmory)  [![Hugging Face Pretrained](https://img.shields.io/badge/hugging_face-pretrained-purple)](https://huggingface.co/collections/magicslabnu/gfm-67f4d4a9327ee4acdcb3806b) [![Hugging Face Dataset](https://img.shields.io/badge/hugging_face-dataset-green)](https://huggingface.co/datasets/magicslabnu/GenoAdv) 
-
+</div>
 
 ## Installation
 
