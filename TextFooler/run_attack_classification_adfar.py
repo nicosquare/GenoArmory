@@ -74,7 +74,7 @@ model = 'dnabert'
 #                 "tf3", "tf4", "0", "1", "2", "3", "4"]
 
 
-dataset_dirs = [ "2"]
+# dataset_dirs = [ "2"]
 
 
 # dataset_dirs = ["0"]

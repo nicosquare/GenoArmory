@@ -3,13 +3,16 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Dict, Any, Optional, Union, NamedTuple
-from transformers import BertModel, BertTokenizer
+from transformers import AutoModel, AutoTokenizer
 import argparse
 import sys
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 import datetime
+import pandas as pd
+import subprocess
+import os
 
 
 @dataclass
@@ -315,8 +318,8 @@ class GenoArmory:
     @classmethod
     def from_pretrained(cls, model_path: str, device: Optional[str] = None):
         """Load GenoArmory from a pretrained model"""
-        model = BertModel.from_pretrained(model_path)
-        tokenizer = BertTokenizer.from_pretrained(model_path)
+        model = AutoModel.from_pretrained(model_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         return cls(
             model,
             tokenizer,
@@ -503,18 +506,53 @@ class GenoArmory:
         pass
 
     def _textfooler_attack(
-        self, sequence: str, target_label: Optional[int], **kwargs
+        self, **kwargs
     ) -> Dict[str, Any]:
         """TextFooler attack implementation"""
-        # Implementation will be added
-        pass
+        # Call the subprocess runner for TextFooler
+        run_textfooler_attack_script(
+            base_dir=kwargs["base_dir"],
+            dataset_dirs=kwargs["dataset_dirs"],
+            model=kwargs["model"],
+            target_model_path_template=kwargs["target_model_path_template"],
+            output_dir_base=kwargs["output_dir_base"],
+            attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
+        )
+        # Return a dummy result (could be extended to parse output)
+        return {
+            "modified_sequence": None,
+            "success": None,
+            "num_queries": None,
+            "queries_to_success": None,
+            "confidence_original": None,
+            "confidence_modified": None,
+        }
 
-    def _pgd_attack(
-        self, sequence: str, target_label: Optional[int], **kwargs
-    ) -> Dict[str, Any]:
+    def _pgd_attack(self, **kwargs) -> Dict[str, Any]:
         """PGD attack implementation"""
-        # Implementation will be added
-        pass
+        run_pgd_attack_script(
+            tasks=kwargs["tasks"],
+            model=kwargs["model"],
+            data_base_dir=kwargs["data_base_dir"],
+            model_base_dir=kwargs["model_base_dir"],
+            output_base_dir=kwargs["output_base_dir"],
+            tokenizer_base_dir=kwargs["tokenizer_base_dir"],
+            test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
+            task_name=kwargs.get("task_name", "0"),
+            num_label=kwargs.get("num_label", "2"),
+            n_gpu=kwargs.get("n_gpu", "1"),
+            max_seq_length=kwargs.get("max_seq_length", "256"),
+            batch_size=kwargs.get("batch_size", "16"),
+            model_type=kwargs.get("model_type", "nt")
+        )
+        return {
+            "modified_sequence": None,
+            "success": None,
+            "num_queries": None,
+            "queries_to_success": None,
+            "confidence_original": None,
+            "confidence_modified": None,
+        }
 
     def _fimba_attack(
         self, sequence: str, target_label: Optional[int], **kwargs
@@ -533,6 +571,99 @@ class GenoArmory:
         """FreeLB defense implementation"""
         # Implementation will be added
         pass
+
+
+def run_textfooler_attack_script(
+    base_dir,
+    dataset_dirs,
+    model,
+    target_model_path_template,
+    output_dir_base,
+    targert_model='bert',
+    max_seq_length=256,
+    batch_size=128,
+    num_label=2,
+    attack_script_path="TextFooler/attack_classification_general.py",
+    
+):
+    command_template = (
+        f'python {attack_script_path} --dataset_path {{dataset_path}} '
+        '--target_model {{target_model}} '
+        '--target_model_path {{target_model_path}} '
+        '--output_dir {{output_dir}} '
+        '--max_seq_length {{max_seq_length}} --batch_size {{batch_size}} '
+        '--counter_fitting_embeddings_path {{counter_fitting_embeddings_path}} '
+        '--counter_fitting_cos_sim_path {{counter_fitting_cos_sim_path}} '
+        '--USE_cache_path {{USE_cache_path}} '
+        '--nclasses {{num_label}} --tokenizer_path /scratch/hlv8980/Attack_Benchmark/models/{model}/{{dataset_dir}}/origin'
+    )
+
+    for dataset_dir in dataset_dirs:
+        dataset_path = os.path.join(base_dir, dataset_dir, 'five_percent/cat.csv')
+        target_model_path = target_model_path_template.format(model=model, dataset_dir=dataset_dir)
+        output_dir = os.path.join(output_dir_base, model, dataset_dir)
+        counter_fitting_embeddings_path="/projects/p32013/DNABERT-meta/TextFooler/embeddings/subword_{model}_embeddings.txt"
+        counter_fitting_cos_sim_path="/projects/p32013/DNABERT-meta/TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{model}.npy"
+        USE_cache_path="/projects/p32013/DNABERT-meta/TextFooler/tf_cache"
+        tokenizer_path="/scratch/hlv8980/Attack_Benchmark/models/{model}/{{dataset_dir}}/origin"
+        if os.path.exists(dataset_path):
+            print(f"Dataset file found: {dataset_path}")
+            command = command_template.format(
+                dataset_path=dataset_path,
+                dataset_dir=dataset_dir,
+                target_model_path=target_model_path,
+                model=model,
+                output_dir=output_dir,
+                counter_fitting_embeddings_path=counter_fitting_embeddings_path,
+                counter_fitting_cos_sim_path=counter_fitting_cos_sim_path,
+                USE_cache_path=USE_cache_path,
+                tokenizer_path=tokenizer_path,
+                max_seq_length=max_seq_length,
+                batch_size=batch_size,
+                num_label=num_label,
+            )
+            subprocess.run(command, shell=True, check=True)
+        else:
+            print(f"Dataset file not found: {dataset_path}")
+
+
+def run_pgd_attack_script(
+    tasks,
+    model,
+    data_base_dir,
+    model_base_dir,
+    output_base_dir,
+    tokenizer_base_dir,
+    test_script_path="PGD/test.py",
+    task_name="0",
+    num_label=2,
+    n_gpu=1,
+    max_seq_length=256,
+    batch_size=16,
+    model_type="nt"
+):
+    for task in tasks:
+        data_dir = os.path.join(data_base_dir, task)
+        model_name_or_path = os.path.join(model_base_dir, model, task)
+        output_dir = os.path.join(output_base_dir, model, task)
+        tokenizer_name = os.path.join(tokenizer_base_dir, model, task)
+        command = [
+            "python", test_script_path,
+            "--data_dir", data_dir,
+            "--model_name_or_path", model_name_or_path,
+            "--task_name", str(task_name),
+            "--num_label", num_label,
+            "--n_gpu", n_gpu,
+            "--max_seq_length", max_seq_length,
+            "--batch_size", batch_size,
+            "--output_dir", output_dir,
+            "--model_type", str(model_type),
+            "--overwrite_cache",
+            "--tokenizer_name", tokenizer_name
+        ]
+        print("Running:", " ".join(command))
+        subprocess.run(command, check=True)
+        print(f"{task} finished")
 
 
 def main():
@@ -584,18 +715,17 @@ def main():
 
     # Attack command
     attack_parser = subparsers.add_parser("attack", help="Perform an attack")
-    attack_parser.add_argument("--sequence", required=True, help="Input DNA sequence")
+    attack_parser.add_argument("--input-csv", required=True, help="Path to CSV file with DNA sequences (column: 'sequence', optional: 'target_label')")
     attack_parser.add_argument(
         "--method", required=True, choices=["bertattack", "textfooler", "pgd", "fimba"]
     )
-    attack_parser.add_argument("--target-label", type=int)
     attack_parser.add_argument(
         "--params", type=str, help="Additional parameters in JSON format"
     )
 
     # Defense command
     defense_parser = subparsers.add_parser("defend", help="Apply a defense")
-    defense_parser.add_argument("--sequence", required=True, help="Input DNA sequence")
+    defense_parser.add_argument("--input-csv", required=True, help="Path to CSV file with DNA sequences (column: 'sequence')")
     defense_parser.add_argument("--method", required=True, choices=["adfar", "freelb"])
     defense_parser.add_argument(
         "--params", type=str, help="Additional parameters in JSON format"
@@ -676,20 +806,31 @@ def main():
 
     elif args.command == "attack":
         kwargs = json.loads(args.params) if args.params else {}
-        result = armory.attack(
-            sequence=args.sequence,
-            attack_method=args.method,
-            target_label=args.target_label,
-            **kwargs,
-        )
-        print(result)
+        df = pd.read_csv(args.input_csv)
+        sequences = df['sequence'].tolist()
+        target_labels = df['target_label'].tolist() if 'target_label' in df.columns else [None] * len(sequences)
+        results = []
+        for seq, label in zip(sequences, target_labels):
+            result = armory.attack(
+                sequence=seq,
+                attack_method=args.method,
+                target_label=label,
+                **kwargs,
+            )
+            results.append(result)
+            print(result)
 
     elif args.command == "defend":
         kwargs = json.loads(args.params) if args.params else {}
-        result = armory.defend(
-            sequence=args.sequence, defense_method=args.method, **kwargs
-        )
-        print(result)
+        df = pd.read_csv(args.input_csv)
+        sequences = df['sequence'].tolist()
+        results = []
+        for seq in sequences:
+            result = armory.defend(
+                sequence=seq, defense_method=args.method, **kwargs
+            )
+            results.append(result)
+            print(result)
 
     elif args.command == "defense-query":
         model = DNAModel(args.model_name, api_key=args.api_key)
