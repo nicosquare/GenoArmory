@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Dict, Any, Optional, Union, NamedTuple
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer, AutoConfig, BertConfig, AutoModelForSequenceClassification
 import argparse
 import sys
 import json
@@ -13,6 +13,7 @@ import datetime
 import pandas as pd
 import subprocess
 import os
+
 
 
 @dataclass
@@ -25,8 +26,7 @@ class AttackMetadata:
     date_created: str = field(
         default_factory=lambda: datetime.datetime.now().isoformat()
     )
-    total_sequences: int = 0
-    success_rate: float = 0.0
+    asr: float = 0.0
     average_queries: float = 0.0
     parameters: Dict[str, Any] = field(default_factory=dict)
 
@@ -41,9 +41,7 @@ class DefenseMetadata:
     date_created: str = field(
         default_factory=lambda: datetime.datetime.now().isoformat()
     )
-    total_sequences: int = 0
-    average_protection: float = 0.0
-    average_robustness: float = 0.0
+    dsr: float = 0.0
     parameters: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -152,6 +150,7 @@ class DNAModelConfig:
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.batch_size = 32
         self.max_length = 512
+        self.num_labels = 2
 
 
 class DNADefense:
@@ -231,8 +230,9 @@ class DNAModel:
             api_key=api_key,
             device=device or ("cuda" if torch.cuda.is_available() else "cpu"),
         )
-        self.model = BertModel.from_pretrained(model_name)
-        self.tokenizer = BertTokenizer.from_pretrained(model_name)
+        self.config = AutoConfig.from_pretrained(model_name, num_labels=self.config.num_labels)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, config=self.config, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.model.to(self.config.device)
 
     def get_defense(self, defense_method: str, **kwargs) -> DNADefense:
@@ -316,10 +316,14 @@ class GenoArmory:
         self._defense_artifacts: Dict[str, DefenseArtifact] = {}
 
     @classmethod
-    def from_pretrained(cls, model_path: str, device: Optional[str] = None):
+    def from_pretrained(cls, model_path: str, device: Optional[str] = None, num_labels: int = 2):
         """Load GenoArmory from a pretrained model"""
-        model = AutoModel.from_pretrained(model_path)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        if 'bert' in model_path:
+            config = BertConfig.from_pretrained(model_path, num_labels=num_labels)
+        else:
+            config = AutoConfig.from_pretrained(model_path, num_labels=num_labels)
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, config=config, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         return cls(
             model,
             tokenizer,
@@ -554,23 +558,144 @@ class GenoArmory:
             "confidence_modified": None,
         }
 
-    def _fimba_attack(
-        self, sequence: str, target_label: Optional[int], **kwargs
-    ) -> Dict[str, Any]:
-        """FIMBA attack implementation"""
-        # Implementation will be added
-        pass
+    def _fimba_attack(self, **kwargs) -> Dict[str, Any]:
+        """
+        FIMBA attack implementation (dynamic, like _pgd_attack).
+        Runs shap_dl_analysis2.py and runatk_standalone.py for each task in tasks.
+        kwargs should include:
+            - tasks: list of task names
+            - model: model name (e.g., 'nt1', 'nt2', 'og')
+            - script_dir: directory containing FIMBA scripts (optional, default: 'fimba-attack' relative to this file)
+            - max_seq_length, batch_size, etc. (optional, with sensible defaults)
+        """
+
+
+        tasks = kwargs["tasks"]
+        model = kwargs["model"]
+        script_dir = kwargs.get("script_dir", os.path.join(os.path.dirname(__file__), "fimba-attack"))
+        max_seq_length = str(kwargs.get("max_seq_length", 128))
+        batch_size_shap = str(kwargs.get("batch_size_shap", 1))
+        batch_size_atk = str(kwargs.get("batch_size_atk", 64))
+        num_label = str(kwargs.get("num_label", 2))
+
+        for task in tasks:
+            print(f"Running FIMBA attack for model: {model}, task: {task}")
+
+            shap_output_file = os.path.join(script_dir, "shap_dicts", f"shap_{model}_fimba_{task}.pkl")
+            data_dir = f"/projects/p32013/DNABERT-meta/GUE/{task}/fimba"
+            model_name_or_path = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{task}/origin"
+            output_dir = f"/projects/p32013/DNABERT-meta/fimba-attack/results/{model}"
+
+            # 1. Run shap_dl_analysis2.py
+            subprocess.run([
+                "python", os.path.join(script_dir, "shap_dl_analysis2.py"),
+                "--data_dir", data_dir,
+                "--model_name_or_path", model_name_or_path,
+                "--task_name", task,
+                "--num_label", num_label,
+                "--max_seq_length", max_seq_length,
+                "--batch_size", batch_size_shap,
+                "--dataset_name", task,
+                "--model_type", model,
+                "--overwrite_cache",
+                "--shap_output_file", shap_output_file
+            ], check=True)
+
+            # 2. Run runatk_standalone.py
+            subprocess.run([
+                "python", os.path.join(script_dir, "runatk_standalone.py"),
+                "--data_dir", data_dir,
+                "--model_name_or_path", model_name_or_path,
+                "--task_name", task,
+                "--num_label", num_label,
+                "--max_seq_length", max_seq_length,
+                "--shap_file", shap_output_file,
+                "--increase_fn",
+                "--batch_size", batch_size_atk,
+                "--model_type", model,
+                "--output_dir", output_dir,
+                "--overwrite_cache",
+                "--overwrite_output_dir"
+            ], check=True)
+
+        # Dummy return for interface compatibility
+        return {
+            "modified_sequence": None,
+            "success": None,
+            "num_queries": None,
+            "queries_to_success": None,
+            "confidence_original": None,
+            "confidence_modified": None,
+        }
 
     # Defense method implementations
-    def _adfar_defense(self, sequence: str, **kwargs) -> Dict[str, Any]:
+    def _adfar_defense(self, **kwargs) -> Dict[str, Any]:
         """ADFAR defense implementation"""
         # Implementation will be added
         pass
 
-    def _freelb_defense(self, sequence: str, **kwargs) -> Dict[str, Any]:
+    def _freelb_defense(self, **kwargs) -> Dict[str, Any]:
         """FreeLB defense implementation"""
         # Implementation will be added
         pass
+
+
+def run_bertattack_attack_script(
+    data_path,
+    mlm_path,
+    tgt_path,
+    model,
+    output_dir,
+    num_label,
+    k,
+    threshold_pred_score,
+    strat,
+    end
+): 
+    model_type = None
+
+    # 判断模型类型
+    if model.lower() in ['dnabert', 'dnabert-2']:
+        model_type = 'DNABERT'
+    elif model.lower() in ['hyenadna']:
+        model_type = 'Hyenadna'
+    elif model.lower() in ['genomeocean', 'og']:
+        model_type = 'GenomeOcean'
+    elif model.lower() in ['nt1', 'nt2']:
+        model_type = 'NT'
+
+    if model_type is None:
+        raise ValueError(f"Unsupported model type: {model}")
+
+    print(f"Model Type Detected: {model_type}")
+
+    # 确定脚本名
+    script_name = {
+        'DNABERT': 'dnabertattack.py',
+        'Hyenadna': 'hyenaattack.py',
+        'GenomeOcean': 'ogattack.py',
+        'NT': 'ntattack.py'
+    }[model_type]
+
+    # 构造命令
+    command = [
+        'python', script_name,
+        '--data_path', data_path,
+        '--mlm_path', mlm_path,
+        '--tgt_path', tgt_path,
+        '--output_dir', output_dir,
+        '--num_label', str(num_label),
+        '--use_bpe', '0',
+        '--k', str(k),
+        '--threshold_pred_score', str(threshold_pred_score),
+        '--start', str(strat),
+        '--end', str(end)
+    ]
+
+    print(f"Running command: {' '.join(command)}")
+
+    subprocess.run(command, check=True)
+
 
 
 def run_textfooler_attack_script(
@@ -664,6 +789,65 @@ def run_pgd_attack_script(
         print("Running:", " ".join(command))
         subprocess.run(command, check=True)
         print(f"{task} finished")
+
+def print_graph(folder_path):
+    person_name = os.path.basename(os.path.normpath(folder_path))
+    
+    # Define the output PDF path
+    output_pdf_path = os.path.join(folder_path, "frequency.pdf")
+
+    # Initialize a Counter to count positions
+    position_counter = Counter()
+
+    # Iterate through all JSON files in the folder
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.json'):
+            file_path = os.path.join(folder_path, filename)
+
+            # Open and load the JSON file
+            with open(file_path, 'r') as file:
+                data = json.load(file)
+
+                # Check if the root is a list
+                if isinstance(data, list):
+                    for entry in data:
+                        if isinstance(entry, dict) and entry.get("success") == 4:
+                            # Iterate over the changes and increment position +1
+                            for change in entry.get("changes", []):
+                                position_counter[change[0] + 1] += 1
+                elif isinstance(data, dict) and data.get("success") == 4:
+                    # If the root is a dict, process normally
+                    for change in data.get("changes", []):
+                        position_counter[change[0] + 1] += 1
+
+    # Set font to Times New Roman
+    plt.rcParams['font.family'] = 'DeJavu Serif'
+    plt.rcParams['font.serif'] = ['Times New Roman']
+
+    # Plot the frequency distribution as a bar chart
+    positions = sorted(position_counter.keys())
+    frequencies = [position_counter[pos] for pos in positions]
+
+    plt.bar(positions, frequencies, color='#ff7f0e')
+    plt.xlabel('Position' ,fontsize=16)
+    plt.ylabel('Frequency' ,fontsize=16)
+    plt.title(f'{person_name}' ,fontsize=18)  # Set title with extracted name
+    plt.xticks(positions ,fontsize=16)
+    plt.yticks(fontsize=16)
+
+    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    # Remove the top and right spines
+    plt.gca().spines['top'].set_visible(False)
+    plt.gca().spines['right'].set_visible(False)
+
+    plt.tight_layout()
+
+    # Save the plot to a PDF file
+    plt.savefig(output_pdf_path)
+    plt.close()
+
+    print(f"Processing complete for folder: {folder_path}")
 
 
 def main():
