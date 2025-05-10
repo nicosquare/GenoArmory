@@ -13,6 +13,8 @@ import datetime
 import pandas as pd
 import subprocess
 import os
+from collections import Counter
+from matplotlib.ticker import MaxNLocator
 
 
 
@@ -372,35 +374,57 @@ class GenoArmory:
             return self._defense_artifacts[key].metadata
         return None
 
-    def visualization(
-        self,
-        sequences: List[str],
-        attention_layer: int = -1,
-        save_path: Optional[str] = None,
-    ) -> None:
+    def visualization(self, **kwargs) -> None:
         """
-        Visualize attention patterns for DNA sequences
-
-        Args:
-            sequences: List of DNA sequences to visualize
-            attention_layer: Which attention layer to visualize
-            save_path: Path to save the visualization
+        Visualize the frequency distribution of changes from a folder of JSON files.
+        Args (in kwargs):
+            folder_path: Path to the folder containing JSON files. (required)
+            output_pdf_path: Path to save the PDF (optional, defaults to frequency.pdf in folder_path)
         """
-        self.model.eval()
-        with torch.no_grad():
-            inputs = self.tokenizer(sequences, return_tensors="pt", padding=True).to(
-                self.device
-            )
-            outputs = self.model(**inputs, output_attentions=True)
-            attention = outputs.attentions[attention_layer]
+        folder_path = kwargs["folder_path"]
+        output_pdf_path = kwargs.get("output_pdf_path", os.path.join(folder_path, "frequency.pdf"))
+        person_name = os.path.basename(os.path.normpath(folder_path))
 
-            # Create attention heatmap
-            plt.figure(figsize=(10, 8))
-            plt.imshow(attention[0].mean(dim=0).cpu())
-            plt.colorbar()
-            if save_path:
-                plt.savefig(save_path)
-            plt.close()
+        # Initialize a Counter to count positions
+        position_counter = Counter()
+
+        # Iterate through all JSON files in the folder
+        for filename in os.listdir(folder_path):
+            if filename.endswith('.json'):
+                file_path = os.path.join(folder_path, filename)
+                with open(file_path, 'r') as file:
+                    data = json.load(file)
+                    # Check if the root is a list
+                    if isinstance(data, list):
+                        for entry in data:
+                            if isinstance(entry, dict) and entry.get("success") == 4:
+                                for change in entry.get("changes", []):
+                                    position_counter[change[0] + 1] += 1
+                    elif isinstance(data, dict) and data.get("success") == 4:
+                        for change in data.get("changes", []):
+                            position_counter[change[0] + 1] += 1
+
+        # Set font to Times New Roman
+        plt.rcParams['font.family'] = 'DeJavu Serif'
+        plt.rcParams['font.serif'] = ['Times New Roman']
+
+        # Plot the frequency distribution as a bar chart
+        positions = sorted(position_counter.keys())
+        frequencies = [position_counter[pos] for pos in positions]
+
+        plt.bar(positions, frequencies, color='#ff7f0e')
+        plt.xlabel('Position', fontsize=16)
+        plt.ylabel('Frequency', fontsize=16)
+        plt.title(f'{person_name}', fontsize=18)
+        plt.xticks(positions, fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.tight_layout()
+        plt.savefig(output_pdf_path)
+        plt.close()
+        print(f"Processing complete for folder: {folder_path}")
 
     def attack(
         self,
