@@ -659,9 +659,152 @@ class GenoArmory:
         pass
 
     def _freelb_defense(self, **kwargs) -> Dict[str, Any]:
-        """FreeLB defense implementation"""
-        # Implementation will be added
-        pass
+        """
+        FreeLB defense implementation:
+        - Runs FreeLB adversarial training for each task (as in run_dnabert.sh)
+        - After training, runs the specified attacks (bertattack, textfooler, pgd) for each task/model, as given in attack_methods
+        - Returns a dummy result for now
+        kwargs should include:
+            - tasks: list of task names
+            - model: model name (e.g., 'dnabert')
+            - attack_methods: list of attack names to run (e.g., ['bertattack', 'pgd'])
+            - project_root: path to FreeLB project root (optional)
+            - log_dir, ckpt_dir: optional, will be set relative to project_root if not provided
+            - Other parameters as needed
+        """
+        import subprocess
+        import os
+
+        tasks = kwargs["tasks"]
+        model = kwargs["model"]
+        attack_methods = kwargs.get("attack_methods", ["bertattack", "textfooler", "pgd"])
+        project_root = kwargs.get("project_root", "/projects/p32013/DNABERT-meta/FreeLB/huggingface-transformers")
+        log_dir = kwargs.get("log_dir", os.path.join(project_root, "logs"))
+        ckpt_dir = kwargs.get("ckpt_dir", os.path.join(project_root, "checkpoints"))
+        gue_dir = kwargs.get("gue_dir", "/projects/p32013/DNABERT-meta/GUE")
+        script_glue_freelb2 = os.path.join(project_root, "examples", "run_glue_freelb2.py")
+        script_glue_freelb3 = os.path.join(project_root, "examples", "run_glue_freelb3.py")
+
+        # FreeLB hyperparameters (can be overridden via kwargs)
+        alr = str(kwargs.get("adv_lr", 1e-1))
+        amag = str(kwargs.get("adv_init_mag", 6e-1))
+        anorm = str(kwargs.get("adv_max_norm", 0))
+        asteps = str(kwargs.get("adv_steps", 2))
+        lr = str(kwargs.get("lr", 1e-5))
+        bsize = str(kwargs.get("batch_size", 32))
+        gas = str(kwargs.get("gradient_accumulation_steps", 1))
+        seqlen = str(kwargs.get("max_seq_length", 256))
+        hdp = str(kwargs.get("hidden_dropout_prob", 0.1))
+        adp = str(kwargs.get("attention_probs_dropout_prob", 0))
+        ts = str(kwargs.get("max_steps", 2000))
+        ws = str(kwargs.get("warmup_steps", 100))
+        seed = str(kwargs.get("seed", 42))
+        wd = str(kwargs.get("weight_decay", 1e-2))
+        num_label = str(kwargs.get("num_label", 2))
+        gpu = str(kwargs.get("gpu", 0))
+
+        for task in tasks:
+            mname = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{task}/origin"
+            model_type = model
+            expname = f"{model_type}_{task}"
+            if model_type == "hyena":
+                script = script_glue_freelb3
+            else:
+                script = script_glue_freelb2
+            output_dir = os.path.join(ckpt_dir, expname)
+            data_dir = os.path.join(gue_dir, task)
+            log_file = os.path.join(log_dir, f"{expname}.log")
+            os.makedirs(log_dir, exist_ok=True)
+            os.makedirs(ckpt_dir, exist_ok=True)
+            # Run FreeLB adversarial training
+            command = [
+                "python", script,
+                "--model_type", model_type,
+                "--model_name_or_path", mname,
+                "--task_name", task,
+                "--do_train",
+                "--do_eval",
+                "--do_lower_case",
+                "--data_dir", data_dir,
+                "--max_seq_length", seqlen,
+                "--per_gpu_train_batch_size", bsize,
+                "--gradient_accumulation_steps", gas,
+                "--learning_rate", lr,
+                "--weight_decay", wd,
+                "--gpu", gpu,
+                "--output_dir", output_dir,
+                "--hidden_dropout_prob", hdp,
+                "--attention_probs_dropout_prob", adp,
+                "--adv-lr", alr,
+                "--adv-init-mag", amag,
+                "--adv-max-norm", anorm,
+                "--adv-steps", asteps,
+                "--expname", expname,
+                "--evaluate_during_training",
+                "--max_steps", ts,
+                "--warmup_steps", ws,
+                "--seed", seed,
+                "--logging_steps", "100",
+                "--save_steps", "100",
+                "--num_label", num_label,
+                "--overwrite_output_dir",
+                "--overwrite_cache"
+            ]
+            print(f"Running FreeLB for task: {task}")
+            with open(log_file, "w") as lf:
+                subprocess.run(command, check=True, stdout=lf, stderr=lf)
+            print(f"---\n{task} FreeLB finish\n---")
+
+            # After training, run only the specified attacks for this task/model
+            if "bertattack" in attack_methods:
+                print(f"Running bertattack on FreeLB-trained model for task: {task}")
+                run_bertattack_attack_script(
+                    data_path=os.path.join(gue_dir, task, "test.csv"),
+                    mlm_path=mname,
+                    tgt_path=os.path.join(gue_dir, task, "test.csv"),
+                    model=model,
+                    output_dir=os.path.join(output_dir, "bertattack"),
+                    num_label=num_label,
+                    k=kwargs.get("k", 5),
+                    threshold_pred_score=kwargs.get("threshold_pred_score", 0.0),
+                    strat=kwargs.get("start", 0),
+                    end=kwargs.get("end", 1000)
+                )
+            if "textfooler" in attack_methods:
+                print(f"Running textfooler on FreeLB-trained model for task: {task}")
+                run_textfooler_attack_script(
+                    base_dir=gue_dir,
+                    dataset_dirs=[task],
+                    model=model,
+                    target_model_path_template=f"/scratch/hlv8980/Attack_Benchmark/models/{{model}}/{{dataset_dir}}/origin",
+                    output_dir_base=os.path.join(output_dir, "textfooler"),
+                    attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
+                )
+            if "pgd" in attack_methods:
+                print(f"Running pgd on FreeLB-trained model for task: {task}")
+                run_pgd_attack_script(
+                    tasks=[task],
+                    model=model,
+                    data_base_dir=gue_dir,
+                    model_base_dir=f"/scratch/hlv8980/Attack_Benchmark/models",
+                    output_base_dir=os.path.join(output_dir, "pgd"),
+                    tokenizer_base_dir=f"/scratch/hlv8980/Attack_Benchmark/models",
+                    test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
+                    task_name=kwargs.get("task_name", task),
+                    num_label=num_label,
+                    n_gpu=kwargs.get("n_gpu", 1),
+                    max_seq_length=seqlen,
+                    batch_size=bsize,
+                    model_type=model
+                )
+
+        # Dummy return for interface compatibility
+        return {
+            "protected_sequence": None,
+            "protection_score": None,
+            "computational_cost": None,
+            "robustness_score": None,
+        }
 
 
 def run_bertattack_attack_script(
