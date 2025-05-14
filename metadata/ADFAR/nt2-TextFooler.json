@@ -11,7 +11,7 @@
       "max_seq_length": 256,
       "batch_size": 128
     },
-    "defense_success_rate": 0.78
+    "defense_success_rate": 0.21999999999999997
   },
   "adversarial_defense": [
     {
@@ -21,7 +21,7 @@
       "average_queries": 149.8,
       "origin_acc": 0.826,
       "after_attack_acc": 0.636,
-      "dsr": 0.22999999999999998
+      "dsr": 0.77
     },
     {
       "index": 1,
@@ -30,7 +30,7 @@
       "average_queries": 88.2,
       "origin_acc": 0.076,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 2,
@@ -39,7 +39,7 @@
       "average_queries": 186.3,
       "origin_acc": 0.988,
       "after_attack_acc": 0.853,
-      "dsr": 0.13660000000000005
+      "dsr": 0.8634
     },
     {
       "index": 3,
@@ -48,7 +48,7 @@
       "average_queries": 85.6,
       "origin_acc": 0.941,
       "after_attack_acc": 0.893,
-      "dsr": 0.051000000000000045
+      "dsr": 0.949
     },
     {
       "index": 4,
@@ -57,7 +57,7 @@
       "average_queries": 334.9,
       "origin_acc": 0.578,
       "after_attack_acc": 0.168,
-      "dsr": 0.7093
+      "dsr": 0.29069999999999996
     },
     {
       "index": 5,
@@ -66,7 +66,7 @@
       "average_queries": 1054.4,
       "origin_acc": 0.69,
       "after_attack_acc": 0.342,
-      "dsr": 0.5043
+      "dsr": 0.49570000000000003
     },
     {
       "index": 6,
@@ -75,7 +75,7 @@
       "average_queries": 134.7,
       "origin_acc": 0.265,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 7,
@@ -84,7 +84,7 @@
       "average_queries": 163.5,
       "origin_acc": 0.898,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 8,
@@ -93,7 +93,7 @@
       "average_queries": 136.7,
       "origin_acc": 0.5579999999999999,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 9,
@@ -102,7 +102,7 @@
       "average_queries": 173.2,
       "origin_acc": 0.35600000000000004,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 10,
@@ -111,7 +111,7 @@
       "average_queries": 135.8,
       "origin_acc": 0.06,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 11,
@@ -120,7 +120,7 @@
       "average_queries": 198.2,
       "origin_acc": 0.919,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 12,
@@ -129,7 +129,7 @@
       "average_queries": 170.9,
       "origin_acc": 0.44299999999999995,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 13,
@@ -138,7 +138,7 @@
       "average_queries": 162.3,
       "origin_acc": 0.47100000000000003,
       "after_attack_acc": 0.34299999999999997,
-      "dsr": 0.27180000000000004
+      "dsr": 0.7282
     },
     {
       "index": 14,
@@ -147,7 +147,7 @@
       "average_queries": 244.9,
       "origin_acc": 0.523,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 15,
@@ -156,7 +156,7 @@
       "average_queries": 113.1,
       "origin_acc": 0.299,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 16,
@@ -165,7 +165,7 @@
       "average_queries": 319.8,
       "origin_acc": 0.565,
       "after_attack_acc": 0.004,
-      "dsr": 0.9929
+      "dsr": 0.007099999999999995
     },
     {
       "index": 17,
@@ -174,7 +174,7 @@
       "average_queries": 155.5,
       "origin_acc": 0.9520000000000001,
       "after_attack_acc": 0.7240000000000001,
-      "dsr": 0.23950000000000005
+      "dsr": 0.7605
     },
     {
       "index": 18,
@@ -183,7 +183,7 @@
       "average_queries": 66.6,
       "origin_acc": 0.652,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 19,
@@ -192,7 +192,7 @@
       "average_queries": 64.4,
       "origin_acc": 0.392,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 20,
@@ -201,7 +201,7 @@
       "average_queries": 62.7,
       "origin_acc": 0.847,
       "after_attack_acc": 0.7240000000000001,
-      "dsr": 0.1452
+      "dsr": 0.8548
     },
     {
       "index": 21,
@@ -210,7 +210,7 @@
       "average_queries": 75.2,
       "origin_acc": 0.152,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 22,
@@ -219,7 +219,7 @@
       "average_queries": 94.7,
       "origin_acc": 0.8690000000000001,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 23,
@@ -228,7 +228,7 @@
       "average_queries": 84.1,
       "origin_acc": 0.159,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 24,
@@ -237,7 +237,7 @@
       "average_queries": 80.2,
       "origin_acc": 0.529,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     },
     {
       "index": 25,
@@ -246,7 +246,7 @@
       "average_queries": 102.7,
       "origin_acc": 0.63,
       "after_attack_acc": 0.0,
-      "dsr": 1.0
+      "dsr": 0.0
     }
   ]
 }

@@ -12,7 +12,7 @@
       "batch_size": 16,
       "n_gpu": 1
     },
-    "defense_success_rate": 0.34040000000000004
+    "defense_success_rate": 0.6596
   },
   "adversarial_defense": [
     {
@@ -22,7 +22,7 @@
       "average_queries": null,
       "origin_acc": 0.9363,
       "after_attack_acc": 0.5148,
-      "dsr": 0.4275
+      "dsr": 0.5725
     },
     {
       "index": 1,
@@ -31,7 +31,7 @@
       "average_queries": null,
       "origin_acc": 0.922,
       "after_attack_acc": 0.5262,
-      "dsr": 0.2663
+      "dsr": 0.7337
     },
     {
       "index": 2,
@@ -40,7 +40,7 @@
       "average_queries": null,
       "origin_acc": 0.965,
       "after_attack_acc": 0.4939,
-      "dsr": 0.3113
+      "dsr": 0.6887
     },
     {
       "index": 3,
@@ -49,7 +49,7 @@
       "average_queries": null,
       "origin_acc": 0.9029,
       "after_attack_acc": 0.4937,
-      "dsr": 0.32609999999999995
+      "dsr": 0.6739
     },
     {
       "index": 4,
@@ -58,7 +58,7 @@
       "average_queries": null,
       "origin_acc": 0.7839,
       "after_attack_acc": 0.4934,
-      "dsr": 0.4284
+      "dsr": 0.5716
     },
     {
       "index": 5,
@@ -67,7 +67,7 @@
       "average_queries": null,
       "origin_acc": 0.8993,
       "after_attack_acc": 0.5297,
-      "dsr": 0.41490000000000005
+      "dsr": 0.5851
     },
     {
       "index": 6,
@@ -76,7 +76,7 @@
       "average_queries": null,
       "origin_acc": 0.9053,
       "after_attack_acc": 0.4644,
-      "dsr": 0.49250000000000005
+      "dsr": 0.5075
     },
     {
       "index": 7,
@@ -85,7 +85,7 @@
       "average_queries": null,
       "origin_acc": 0.915,
       "after_attack_acc": 0.4748,
-      "dsr": 0.47040000000000004
+      "dsr": 0.5296
     },
     {
       "index": 8,
@@ -94,7 +94,7 @@
       "average_queries": null,
       "origin_acc": 0.7786,
       "after_attack_acc": 0.5215,
-      "dsr": 0.4448
+      "dsr": 0.5552
     },
     {
       "index": 9,
@@ -103,7 +103,7 @@
       "average_queries": null,
       "origin_acc": 0.7171,
       "after_attack_acc": 0.4907,
-      "dsr": 0.41869999999999996
+      "dsr": 0.5813
     },
     {
       "index": 10,
@@ -112,7 +112,7 @@
       "average_queries": null,
       "origin_acc": 0.7326,
       "after_attack_acc": 0.5288,
-      "dsr": 0.43520000000000003
+      "dsr": 0.5648
     },
     {
       "index": 11,
@@ -121,7 +121,7 @@
       "average_queries": null,
       "origin_acc": 0.8965,
       "after_attack_acc": 0.5277,
-      "dsr": 0.42689999999999995
+      "dsr": 0.5731
     },
     {
       "index": 12,
@@ -130,7 +130,7 @@
       "average_queries": null,
       "origin_acc": 0.8632,
       "after_attack_acc": 0.5311,
-      "dsr": 0.4496
+      "dsr": 0.5504
     },
     {
       "index": 13,
@@ -139,7 +139,7 @@
       "average_queries": null,
       "origin_acc": 0.9393,
       "after_attack_acc": 0.5127,
-      "dsr": 0.43210000000000004
+      "dsr": 0.5679
     },
     {
       "index": 14,
@@ -148,7 +148,7 @@
       "average_queries": null,
       "origin_acc": 0.8442,
       "after_attack_acc": 0.5094,
-      "dsr": 0.06010000000000004
+      "dsr": 0.9399
     },
     {
       "index": 15,
@@ -157,7 +157,7 @@
       "average_queries": null,
       "origin_acc": 0.9417,
       "after_attack_acc": 0.4311,
-      "dsr": 0.5422
+      "dsr": 0.4578
     },
     {
       "index": 16,
@@ -166,7 +166,7 @@
       "average_queries": null,
       "origin_acc": 0.9646,
       "after_attack_acc": 0.5061,
-      "dsr": 0.47529999999999994
+      "dsr": 0.5247
     },
     {
       "index": 17,
@@ -175,7 +175,7 @@
       "average_queries": null,
       "origin_acc": 0.8,
       "after_attack_acc": 0.5106,
-      "dsr": 0.3617
+      "dsr": 0.6383
     },
     {
       "index": 18,
@@ -184,7 +184,7 @@
       "average_queries": null,
       "origin_acc": 0.8704,
       "after_attack_acc": 0.6162,
-      "dsr": 0.29079999999999995
+      "dsr": 0.7092
     },
     {
       "index": 19,
@@ -193,7 +193,7 @@
       "average_queries": null,
       "origin_acc": 0.8521,
       "after_attack_acc": 0.5691,
-      "dsr": 0.33140000000000003
+      "dsr": 0.6686
     },
     {
       "index": 20,
@@ -202,7 +202,7 @@
       "average_queries": null,
       "origin_acc": 0.8967,
       "after_attack_acc": 0.5139,
-      "dsr": 0.42689999999999995
+      "dsr": 0.5731
     },
     {
       "index": 21,
@@ -211,7 +211,7 @@
       "average_queries": null,
       "origin_acc": 0.9363,
       "after_attack_acc": 0.524,
-      "dsr": 0.03490000000000004
+      "dsr": 0.9651
     },
     {
       "index": 22,
@@ -220,7 +220,7 @@
       "average_queries": null,
       "origin_acc": 0.922,
       "after_attack_acc": 0.533,
-      "dsr": 0.08909999999999996
+      "dsr": 0.9109
     },
     {
       "index": 23,
@@ -229,7 +229,7 @@
       "average_queries": null,
       "origin_acc": 0.965,
       "after_attack_acc": 0.512,
-      "dsr": 0.08819999999999995
+      "dsr": 0.9118
     },
     {
       "index": 24,
@@ -238,7 +238,7 @@
       "average_queries": null,
       "origin_acc": 0.9029,
       "after_attack_acc": 0.505,
-      "dsr": 0.3226
+      "dsr": 0.6774
     },
     {
       "index": 25,
@@ -247,7 +247,7 @@
       "average_queries": null,
       "origin_acc": 0.7839,
       "after_attack_acc": 0.525,
-      "dsr": 0.08209999999999995
+      "dsr": 0.9179
     }
   ]
 }

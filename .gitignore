@@ -1,6 +1,7 @@
 data/*
 *.csv
 GUE/*
+TNF/*
 *.safetensors
 nucleotide-transformer/*
 BERT-Attack/GUE/*

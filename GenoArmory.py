@@ -138,23 +138,6 @@ class DefenseArtifact:
         return len(self.defenses)
 
 
-class DNAModelConfig:
-    """Configuration for DNA sequence model"""
-
-    def __init__(
-        self,
-        model_name: str,
-        api_key: Optional[str] = None,
-        device: Optional[str] = None,
-    ):
-        self.model_name = model_name
-        self.api_key = api_key
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.batch_size = 32
-        self.max_length = 512
-        self.num_labels = 2
-
-
 class DNADefense:
     """Base class for DNA sequence defenses"""
 
@@ -224,14 +207,9 @@ class DNAModel:
     def __init__(
         self,
         model_name: str,
-        api_key: Optional[str] = None,
         device: Optional[str] = None,
     ):
-        self.config = DNAModelConfig(
-            model_name=model_name,
-            api_key=api_key,
-            device=device or ("cuda" if torch.cuda.is_available() else "cpu"),
-        )
+
         self.config = AutoConfig.from_pretrained(model_name, num_labels=self.config.num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name, config=self.config, trust_remote_code=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -304,14 +282,15 @@ class GenoArmory:
         Initialize GenoArmory with a model and tokenizer
 
         Args:
-            model: The DNABERT model to be used
+            model: The GFM to be used
             tokenizer: The tokenizer for the model
             device: Device to run the model on (cuda/cpu)
         """
         self.model = model
         self.tokenizer = tokenizer
         self.device = device
-        self.model.to(device)
+        if self.model is not None:
+            self.model.to(device)
 
         # Store artifacts
         self._attack_artifacts: Dict[str, AttackArtifact] = {}
@@ -428,18 +407,14 @@ class GenoArmory:
 
     def attack(
         self,
-        sequence: str,
         attack_method: str,
-        target_label: Optional[int] = None,
         **kwargs,
     ) -> AttackInfo:
         """
-        Perform attacks on DNA sequences
+        Perform attacks on GFM
 
         Args:
-            sequence: Input DNA sequence
             attack_method: One of ['bertattack', 'textfooler', 'pgd', 'fimba']
-            target_label: Target label for attack
             **kwargs: Additional arguments for specific attack methods
 
         Returns:
@@ -457,31 +432,31 @@ class GenoArmory:
                 f"Attack method must be one of {list(attack_methods.keys())}"
             )
 
-        result = attack_methods[attack_method](sequence, target_label, **kwargs)
+        result = attack_methods[attack_method](**kwargs)
 
-        # Create attack info
-        attack_info = AttackInfo(
-            index=len(
-                self._attack_artifacts.get(
-                    f"{attack_method}_{self.model.name_or_path}", []
-                )
-            ),
-            method=attack_method,
-            target_sequence=sequence,
-            modified_sequence=result["modified_sequence"],
-            target_label=target_label,
-            success=result["success"],
-            number_of_queries=result["num_queries"],
-            queries_to_success=result["queries_to_success"],
-            confidence_original=result["confidence_original"],
-            confidence_modified=result["confidence_modified"],
-        )
+        # # Create attack info
+        # attack_info = AttackInfo(
+        #     index=len(
+        #         self._attack_artifacts.get(
+        #             f"{attack_method}_{self.model.name_or_path}", []
+        #         )
+        #     ),
+        #     method=attack_method,
+        #     target_sequence=sequence,
+        #     modified_sequence=result["modified_sequence"],
+        #     target_label=target_label,
+        #     success=result["success"],
+        #     number_of_queries=result["num_queries"],
+        #     queries_to_success=result["queries_to_success"],
+        #     confidence_original=result["confidence_original"],
+        #     confidence_modified=result["confidence_modified"],
+        # )
 
-        # Add to artifacts
-        artifact = self.read_attack_artifact(attack_method, self.model.name_or_path)
-        artifact.add_attack(attack_info)
+        # # Add to artifacts
+        # artifact = self.read_attack_artifact(attack_method, self.model.name_or_path)
+        # artifact.add_attack(attack_info)
 
-        return attack_info
+        # return attack_info
 
     def defend(self, sequence: str, defense_method: str, **kwargs) -> DefenseInfo:
         """
@@ -530,8 +505,7 @@ class GenoArmory:
         self, sequence: str, target_label: Optional[int], **kwargs
     ) -> Dict[str, Any]:
         """BERT-Attack implementation"""
-        # Implementation will be added
-        pass
+        run_textfooler_attack_script
 
     def _textfooler_attack(
         self, **kwargs
@@ -546,16 +520,7 @@ class GenoArmory:
             output_dir_base=kwargs["output_dir_base"],
             attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
         )
-        # Return a dummy result (could be extended to parse output)
-        return {
-            "modified_sequence": None,
-            "success": None,
-            "num_queries": None,
-            "queries_to_success": None,
-            "confidence_original": None,
-            "confidence_modified": None,
-        }
-
+       
     def _pgd_attack(self, **kwargs) -> Dict[str, Any]:
         """PGD attack implementation"""
         run_pgd_attack_script(
@@ -565,13 +530,13 @@ class GenoArmory:
             model_base_dir=kwargs["model_base_dir"],
             output_base_dir=kwargs["output_base_dir"],
             tokenizer_base_dir=kwargs["tokenizer_base_dir"],
+            model_type=kwargs["model_type"],
             test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
             task_name=kwargs.get("task_name", "0"),
             num_label=kwargs.get("num_label", "2"),
             n_gpu=kwargs.get("n_gpu", "1"),
             max_seq_length=kwargs.get("max_seq_length", "256"),
             batch_size=kwargs.get("batch_size", "16"),
-            model_type=kwargs.get("model_type", "nt")
         )
         return {
             "modified_sequence": None,
@@ -606,9 +571,9 @@ class GenoArmory:
             print(f"Running FIMBA attack for model: {model}, task: {task}")
 
             shap_output_file = os.path.join(script_dir, "shap_dicts", f"shap_{model}_fimba_{task}.pkl")
-            data_dir = f"/projects/p32013/DNABERT-meta/GUE/{task}/fimba"
+            data_dir = f"./GUE/{task}/fimba"
             model_name_or_path = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{task}/origin"
-            output_dir = f"/projects/p32013/DNABERT-meta/fimba-attack/results/{model}"
+            output_dir = f"./fimba-attack/results/{model}"
 
             # 1. Run shap_dl_analysis2.py
             subprocess.run([
@@ -661,27 +626,26 @@ class GenoArmory:
     def _freelb_defense(self, **kwargs) -> Dict[str, Any]:
         """
         FreeLB defense implementation:
-        - Runs FreeLB adversarial training for each task (as in run_dnabert.sh)
+        - Runs FreeLB adversarial training for each task
         - After training, runs the specified attacks (bertattack, textfooler, pgd) for each task/model, as given in attack_methods
         - Returns a dummy result for now
         kwargs should include:
             - tasks: list of task names
-            - model: model name (e.g., 'dnabert')
+            - model: model name
             - attack_methods: list of attack names to run (e.g., ['bertattack', 'pgd'])
             - project_root: path to FreeLB project root (optional)
             - log_dir, ckpt_dir: optional, will be set relative to project_root if not provided
             - Other parameters as needed
         """
-        import subprocess
-        import os
+
 
         tasks = kwargs["tasks"]
         model = kwargs["model"]
         attack_methods = kwargs.get("attack_methods", ["bertattack", "textfooler", "pgd"])
-        project_root = kwargs.get("project_root", "/projects/p32013/DNABERT-meta/FreeLB/huggingface-transformers")
+        project_root = kwargs.get("project_root", "./FreeLB/huggingface-transformers")
         log_dir = kwargs.get("log_dir", os.path.join(project_root, "logs"))
         ckpt_dir = kwargs.get("ckpt_dir", os.path.join(project_root, "checkpoints"))
-        gue_dir = kwargs.get("gue_dir", "/projects/p32013/DNABERT-meta/GUE")
+        gue_dir = kwargs.get("gue_dir", "./GUE")
         script_glue_freelb2 = os.path.join(project_root, "examples", "run_glue_freelb2.py")
         script_glue_freelb3 = os.path.join(project_root, "examples", "run_glue_freelb3.py")
 
@@ -798,13 +762,6 @@ class GenoArmory:
                     model_type=model
                 )
 
-        # Dummy return for interface compatibility
-        return {
-            "protected_sequence": None,
-            "protection_score": None,
-            "computational_cost": None,
-            "robustness_score": None,
-        }
 
 
 def run_bertattack_attack_script(
@@ -821,30 +778,27 @@ def run_bertattack_attack_script(
 ): 
     model_type = None
 
-    # 判断模型类型
     if model.lower() in ['dnabert', 'dnabert-2']:
-        model_type = 'DNABERT'
+        model_type = 'dnabert'
     elif model.lower() in ['hyenadna']:
-        model_type = 'Hyenadna'
+        model_type = 'hyena'
     elif model.lower() in ['genomeocean', 'og']:
-        model_type = 'GenomeOcean'
+        model_type = 'og'
     elif model.lower() in ['nt1', 'nt2']:
-        model_type = 'NT'
+        model_type = 'nt'
 
     if model_type is None:
         raise ValueError(f"Unsupported model type: {model}")
 
     print(f"Model Type Detected: {model_type}")
 
-    # 确定脚本名
     script_name = {
-        'DNABERT': 'dnabertattack.py',
-        'Hyenadna': 'hyenaattack.py',
-        'GenomeOcean': 'ogattack.py',
-        'NT': 'ntattack.py'
+        'dnabert': 'dnabertattack.py',
+        'hyena': 'hyenaattack.py',
+        'og': 'ogattack.py',
+        'nt': 'ntattack.py'
     }[model_type]
 
-    # 构造命令
     command = [
         'python', script_name,
         '--data_path', data_path,
@@ -894,9 +848,9 @@ def run_textfooler_attack_script(
         dataset_path = os.path.join(base_dir, dataset_dir, 'five_percent/cat.csv')
         target_model_path = target_model_path_template.format(model=model, dataset_dir=dataset_dir)
         output_dir = os.path.join(output_dir_base, model, dataset_dir)
-        counter_fitting_embeddings_path="/projects/p32013/DNABERT-meta/TextFooler/embeddings/subword_{model}_embeddings.txt"
-        counter_fitting_cos_sim_path="/projects/p32013/DNABERT-meta/TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{model}.npy"
-        USE_cache_path="/projects/p32013/DNABERT-meta/TextFooler/tf_cache"
+        counter_fitting_embeddings_path="./TextFooler/embeddings/subword_{model}_embeddings.txt"
+        counter_fitting_cos_sim_path="./TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{model}.npy"
+        USE_cache_path="./TextFooler/tf_cache"
         tokenizer_path="/scratch/hlv8980/Attack_Benchmark/models/{model}/{{dataset_dir}}/origin"
         if os.path.exists(dataset_path):
             print(f"Dataset file found: {dataset_path}")
@@ -926,28 +880,28 @@ def run_pgd_attack_script(
     model_base_dir,
     output_base_dir,
     tokenizer_base_dir,
+    model_type,
     test_script_path="PGD/test.py",
     task_name="0",
     num_label=2,
     n_gpu=1,
     max_seq_length=256,
     batch_size=16,
-    model_type="nt"
 ):
     for task in tasks:
         data_dir = os.path.join(data_base_dir, task)
-        model_name_or_path = os.path.join(model_base_dir, model, task)
+        model_name_or_path = os.path.join(model_base_dir)
         output_dir = os.path.join(output_base_dir, model, task)
-        tokenizer_name = os.path.join(tokenizer_base_dir, model, task)
+        tokenizer_name = os.path.join(tokenizer_base_dir)
         command = [
             "python", test_script_path,
             "--data_dir", data_dir,
             "--model_name_or_path", model_name_or_path,
             "--task_name", str(task_name),
-            "--num_label", num_label,
-            "--n_gpu", n_gpu,
-            "--max_seq_length", max_seq_length,
-            "--batch_size", batch_size,
+            "--num_label", str(num_label),  # 转换为字符串
+            "--n_gpu", str(n_gpu),           # 转换为字符串
+            "--max_seq_length", str(max_seq_length),  # 转换为字符串
+            "--batch_size", str(batch_size),  # 转换为字符串
             "--output_dir", output_dir,
             "--model_type", str(model_type),
             "--overwrite_cache",
@@ -1024,14 +978,9 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Visualization command
-    vis_parser = subparsers.add_parser("visualize", help="Visualize attention patterns")
-    vis_parser.add_argument(
-        "--sequences", nargs="+", required=True, help="List of DNA sequences"
-    )
-    vis_parser.add_argument(
-        "--layer", type=int, default=-1, help="Attention layer to visualize"
-    )
-    vis_parser.add_argument("--save-path", type=str, help="Path to save visualization")
+    vis_parser = subparsers.add_parser("visualize", help="Visualize frequency distribution from JSON files")
+    vis_parser.add_argument("--folder_path", type=str, help="Path to the folder containing JSON files")
+    vis_parser.add_argument("--save_path", type=str, default=None, help="Optional path to save the PDF")
 
     # Read artifacts command
     read_parser = subparsers.add_parser("read", help="Read attack or defense artifacts")
@@ -1066,12 +1015,14 @@ def main():
 
     # Attack command
     attack_parser = subparsers.add_parser("attack", help="Perform an attack")
-    attack_parser.add_argument("--input-csv", required=True, help="Path to CSV file with DNA sequences (column: 'sequence', optional: 'target_label')")
     attack_parser.add_argument(
         "--method", required=True, choices=["bertattack", "textfooler", "pgd", "fimba"]
     )
     attack_parser.add_argument(
         "--params", type=str, help="Additional parameters in JSON format"
+    )
+    attack_parser.add_argument(
+        "--params_file", type=str, help="Path to a JSON file containing parameters"
     )
 
     # Defense command
@@ -1103,7 +1054,7 @@ def main():
     )
 
     # Model loading arguments
-    parser.add_argument("--model-path", required=True, help="Path to the DNABERT model")
+    parser.add_argument("--model-path", required=True)
     parser.add_argument(
         "--device",
         default="cuda" if torch.cuda.is_available() else "cpu",
@@ -1118,58 +1069,35 @@ def main():
     # Execute commands
     if args.command == "visualize":
         armory.visualization(
-            sequences=args.sequences,
-            attention_layer=args.layer,
+            folder_path=args.folder_path,
             save_path=args.save_path,
         )
 
-    elif args.command == "read":
-        if args.type == "attack":
-            artifact = armory.read_attack_artifact(args.method, args.model)
-            if args.metadata:
-                print(artifact.metadata)
-            elif args.index is not None:
-                print(artifact[args.index])
-            else:
-                print(f"Total attacks: {len(artifact)}")
-                print(f"Metadata: {artifact.metadata}")
+    elif args.command == "attack":
+        if args.params_file:
+            try:
+                with open(args.params_file, "r") as f:
+                    kwargs = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in params file '{args.params_file}': {e}")
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Params file '{args.params_file}' not found.")
+        elif args.params:
+            try:
+                kwargs = json.loads(args.params)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in --params: {e}")
         else:
-            artifact = armory.read_defense_artifact(args.method, args.model)
-            if args.metadata:
-                print(artifact.metadata)
-            elif args.index is not None:
-                print(artifact[args.index])
-            else:
-                print(f"Total defenses: {len(artifact)}")
-                print(f"Metadata: {artifact.metadata}")
+            kwargs = {}
 
-    elif args.command == "query":
-        model = DNAModel(args.model_name, api_key=args.api_key)
-        kwargs = json.loads(args.params) if args.params else {}
-        results = model.query(
-            sequences=args.sequences,
+        print("Loaded parameters:", kwargs)
+
+        result = armory.attack(
             attack_method=args.method,
-            target_labels=args.target_labels,
             **kwargs,
         )
-        for result in results:
-            print(result)
-
-    elif args.command == "attack":
-        kwargs = json.loads(args.params) if args.params else {}
-        df = pd.read_csv(args.input_csv)
-        sequences = df['sequence'].tolist()
-        target_labels = df['target_label'].tolist() if 'target_label' in df.columns else [None] * len(sequences)
-        results = []
-        for seq, label in zip(sequences, target_labels):
-            result = armory.attack(
-                sequence=seq,
-                attack_method=args.method,
-                target_label=label,
-                **kwargs,
-            )
-            results.append(result)
-            print(result)
+        results.append(result)
+        print(result)
 
     elif args.command == "defend":
         kwargs = json.loads(args.params) if args.params else {}
@@ -1183,17 +1111,12 @@ def main():
             results.append(result)
             print(result)
 
-    elif args.command == "defense-query":
-        model = DNAModel(args.model_name, api_key=args.api_key)
-        kwargs = json.loads(args.params) if args.params else {}
-
-        # Get defense wrapper
-        defense = model.get_defense(args.defense_method, **kwargs)
-
-        # Apply defense
-        result = defense.query(args.sequence)
-        print(result)
+    else:
+        raise RuntimeError("The commend is not support")
 
 
 if __name__ == "__main__":
     main()
+
+
+__all__ = ["GenoArmory"]
