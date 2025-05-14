@@ -7,7 +7,7 @@
     "total_number_of_sequences": 1000000,
     "evaluation_date": "2025-03-18",
     "method_parameters": {
-      "nclasses": 2,
+      "num_label": 2,
       "max_seq_length": 256,
       "batch_size": 16,
       "n_gpu": 1

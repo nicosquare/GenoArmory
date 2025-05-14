@@ -1,0 +1,17 @@
+{
+  "tasks": [
+    "H3"
+  ],
+  "model": "bert",
+  "base_dir": "GUE",
+  "target_model_path": "magicslabnu/DNABERT-2-finetuned-H3",
+  "tokenizer_path": "zhihan1996/DNABERT-2-117M",
+  "output_dir_base": "test/TextFooler",
+  "targert_model": "bert",
+  "attack_script_path": "TextFooler/attack_classification_general.py",
+  "task_name": "0",
+  "num_label": 2,
+  "n_gpu": 1,
+  "max_seq_length": 256,
+  "batch_size": 16
+}

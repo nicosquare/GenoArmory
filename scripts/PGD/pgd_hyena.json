@@ -1,0 +1,17 @@
+{
+  "tasks": [
+    "H3"
+  ],
+  "model": "HyenaDNA",
+  "data_base_dir": "GUE",
+  "model_base_dir": "magicslabnu/Hyena-small-32k_seqlen-finetuned-H3",
+  "output_base_dir": "test/PGD",
+  "tokenizer_base_dir": "LongSafari/hyenadna-small-32k-seqlen-hf",
+  "model_type": "hyena",
+  "test_script_path": "PGD/pgd.py",
+  "task_name": "0",
+  "num_label": 2,
+  "n_gpu": 1,
+  "max_seq_length": 256,
+  "batch_size": 16
+}

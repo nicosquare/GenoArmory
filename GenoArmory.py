@@ -505,7 +505,15 @@ class GenoArmory:
         self, sequence: str, target_label: Optional[int], **kwargs
     ) -> Dict[str, Any]:
         """BERT-Attack implementation"""
-        run_textfooler_attack_script
+        run_bertattack_attack_script(
+            data_path=kwargs["data_path"],
+            mlm_path=kwargs["mlm_path"],
+            tgt_path=kwargs["tgt_path"],
+            model=kwargs["model"],
+            output_dir=kwargs["output_dir"],
+            num_label=kwargs["num_label"],
+            k=kwargs["k"],
+        )
 
     def _textfooler_attack(
         self, **kwargs
@@ -514,9 +522,10 @@ class GenoArmory:
         # Call the subprocess runner for TextFooler
         run_textfooler_attack_script(
             base_dir=kwargs["base_dir"],
-            dataset_dirs=kwargs["dataset_dirs"],
-            model=kwargs["model"],
-            target_model_path_template=kwargs["target_model_path_template"],
+            tasks=kwargs["tasks"],
+            target_model=kwargs["model"],
+            target_model_path=kwargs["target_model_path"],
+            num_label=kwargs["num_label"],
             output_dir_base=kwargs["output_dir_base"],
             attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
         )
@@ -538,14 +547,7 @@ class GenoArmory:
             max_seq_length=kwargs.get("max_seq_length", "256"),
             batch_size=kwargs.get("batch_size", "16"),
         )
-        return {
-            "modified_sequence": None,
-            "success": None,
-            "num_queries": None,
-            "queries_to_success": None,
-            "confidence_original": None,
-            "confidence_modified": None,
-        }
+        
 
     def _fimba_attack(self, **kwargs) -> Dict[str, Any]:
         """
@@ -566,13 +568,14 @@ class GenoArmory:
         batch_size_shap = str(kwargs.get("batch_size_shap", 1))
         batch_size_atk = str(kwargs.get("batch_size_atk", 64))
         num_label = str(kwargs.get("num_label", 2))
+        target_model_path = kwargs.get("target_model_path", "")
 
         for task in tasks:
             print(f"Running FIMBA attack for model: {model}, task: {task}")
 
             shap_output_file = os.path.join(script_dir, "shap_dicts", f"shap_{model}_fimba_{task}.pkl")
-            data_dir = f"./GUE/{task}/fimba"
-            model_name_or_path = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{task}/origin"
+            data_dir = f"./GUE/{task}"
+            model_name_or_path = target_model_path
             output_dir = f"./fimba-attack/results/{model}"
 
             # 1. Run shap_dl_analysis2.py
@@ -607,15 +610,6 @@ class GenoArmory:
                 "--overwrite_output_dir"
             ], check=True)
 
-        # Dummy return for interface compatibility
-        return {
-            "modified_sequence": None,
-            "success": None,
-            "num_queries": None,
-            "queries_to_success": None,
-            "confidence_original": None,
-            "confidence_modified": None,
-        }
 
     # Defense method implementations
     def _adfar_defense(self, **kwargs) -> Dict[str, Any]:
@@ -737,11 +731,12 @@ class GenoArmory:
             if "textfooler" in attack_methods:
                 print(f"Running textfooler on FreeLB-trained model for task: {task}")
                 run_textfooler_attack_script(
-                    base_dir=gue_dir,
-                    dataset_dirs=[task],
-                    model=model,
-                    target_model_path_template=f"/scratch/hlv8980/Attack_Benchmark/models/{{model}}/{{dataset_dir}}/origin",
-                    output_dir_base=os.path.join(output_dir, "textfooler"),
+                    base_dir=kwargs["base_dir"],
+                    tasks=kwargs["tasks"],
+                    target_model=kwargs["model"],
+                    target_model_path=kwargs["target_model_path"],
+                    num_label=kwargs["num_label"],
+                    output_dir_base=kwargs["output_dir_base"],
                     attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
                 )
             if "pgd" in attack_methods:
@@ -774,7 +769,8 @@ def run_bertattack_attack_script(
     k,
     threshold_pred_score,
     strat,
-    end
+    end,
+    use_bpe=0
 ): 
     model_type = None
 
@@ -806,11 +802,11 @@ def run_bertattack_attack_script(
         '--tgt_path', tgt_path,
         '--output_dir', output_dir,
         '--num_label', str(num_label),
-        '--use_bpe', '0',
         '--k', str(k),
         '--threshold_pred_score', str(threshold_pred_score),
         '--start', str(strat),
-        '--end', str(end)
+        '--end', str(end),
+        '--use_bpe', str(use_bpe),
     ]
 
     print(f"Running command: {' '.join(command)}")
@@ -821,44 +817,44 @@ def run_bertattack_attack_script(
 
 def run_textfooler_attack_script(
     base_dir,
-    dataset_dirs,
-    model,
-    target_model_path_template,
+    tasks,
+    target_model_path,
     output_dir_base,
-    targert_model='bert',
+    target_model='bert',
     max_seq_length=256,
     batch_size=128,
     num_label=2,
     attack_script_path="TextFooler/attack_classification_general.py",
     
 ):
-    command_template = (
-        f'python {attack_script_path} --dataset_path {{dataset_path}} '
-        '--target_model {{target_model}} '
-        '--target_model_path {{target_model_path}} '
-        '--output_dir {{output_dir}} '
-        '--max_seq_length {{max_seq_length}} --batch_size {{batch_size}} '
-        '--counter_fitting_embeddings_path {{counter_fitting_embeddings_path}} '
-        '--counter_fitting_cos_sim_path {{counter_fitting_cos_sim_path}} '
-        '--USE_cache_path {{USE_cache_path}} '
-        '--nclasses {{num_label}} --tokenizer_path /scratch/hlv8980/Attack_Benchmark/models/{model}/{{dataset_dir}}/origin'
-    )
-
-    for dataset_dir in dataset_dirs:
+    
+    for dataset_dir in tasks:
         dataset_path = os.path.join(base_dir, dataset_dir, 'five_percent/cat.csv')
-        target_model_path = target_model_path_template.format(model=model, dataset_dir=dataset_dir)
-        output_dir = os.path.join(output_dir_base, model, dataset_dir)
-        counter_fitting_embeddings_path="./TextFooler/embeddings/subword_{model}_embeddings.txt"
-        counter_fitting_cos_sim_path="./TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{model}.npy"
+        output_dir = os.path.join(output_dir_base, target_model, dataset_dir)
+        counter_fitting_embeddings_path=f"./TextFooler/embeddings/subword_{target_model}_embeddings.txt"
+        counter_fitting_cos_sim_path=f"./TextFooler/cos_sim_counter_fitting/cos_sim_counter_fitting_{target_model}.npy"
         USE_cache_path="./TextFooler/tf_cache"
-        tokenizer_path="/scratch/hlv8980/Attack_Benchmark/models/{model}/{{dataset_dir}}/origin"
+        tokenizer_path=f"/scratch/hlv8980/Attack_Benchmark/models/{target_model}/{dataset_dir}/origin"
+        
+        command_template = (
+            f'python {attack_script_path} --dataset_path {dataset_path} '
+            '--target_model {target_model} '
+            '--target_model_path {target_model_path} '
+            '--output_dir {output_dir} '
+            '--max_seq_length {max_seq_length} --batch_size {batch_size} '
+            '--counter_fitting_embeddings_path {counter_fitting_embeddings_path} '
+            '--counter_fitting_cos_sim_path {counter_fitting_cos_sim_path} '
+            '--USE_cache_path {USE_cache_path} '
+            '--nclasses {num_label} --tokenizer_path {tokenizer_path}'
+        )
+        
         if os.path.exists(dataset_path):
             print(f"Dataset file found: {dataset_path}")
             command = command_template.format(
                 dataset_path=dataset_path,
                 dataset_dir=dataset_dir,
                 target_model_path=target_model_path,
-                model=model,
+                target_model=target_model,
                 output_dir=output_dir,
                 counter_fitting_embeddings_path=counter_fitting_embeddings_path,
                 counter_fitting_cos_sim_path=counter_fitting_cos_sim_path,
@@ -868,6 +864,7 @@ def run_textfooler_attack_script(
                 batch_size=batch_size,
                 num_label=num_label,
             )
+            print(command)
             subprocess.run(command, shell=True, check=True)
         else:
             print(f"Dataset file not found: {dataset_path}")
@@ -1054,7 +1051,7 @@ def main():
     )
 
     # Model loading arguments
-    parser.add_argument("--model-path", required=True)
+    parser.add_argument("--model_path", required=True)
     parser.add_argument(
         "--device",
         default="cuda" if torch.cuda.is_available() else "cpu",

@@ -1,0 +1,17 @@
+{
+  "tasks": [
+    "H3"
+  ],
+  "model": "GenomeOcean",
+  "data_base_dir": "GUE",
+  "model_base_dir": "magicslabnu/GenomeOcean-100M-finetuned-H3",
+  "output_base_dir": "test/PGD",
+  "tokenizer_base_dir": "pGenomeOcean/GenomeOcean-100M",
+  "model_type": "og",
+  "test_script_path": "PGD/pgd.py",
+  "task_name": "0",
+  "num_label": 2,
+  "n_gpu": 1,
+  "max_seq_length": 256,
+  "batch_size": 16
+}
