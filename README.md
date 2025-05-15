@@ -71,7 +71,7 @@ python GenoArmory.py --model_path magicslabnu/GERM visualize --folder_path /proj
 
 
 # Read MetaData
-# python GenoArmory.py --model_path magicslabnu/GERM read --type attack --method TextFooler --model_name dnabert
+python GenoArmory.py --model_path magicslabnu/GERM read --type attack --method TextFooler --model_name dnabert
 
 ```
 
