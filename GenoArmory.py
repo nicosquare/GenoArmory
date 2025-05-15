@@ -432,7 +432,7 @@ class GenoArmory:
                 f"Attack method must be one of {list(attack_methods.keys())}"
             )
 
-        result = attack_methods[attack_method](**kwargs)
+        attack_methods[attack_method](**kwargs)
 
         # # Create attack info
         # attack_info = AttackInfo(
@@ -458,7 +458,7 @@ class GenoArmory:
 
         # return attack_info
 
-    def defend(self, sequence: str, defense_method: str, **kwargs) -> DefenseInfo:
+    def defense(self, defense_method: str, **kwargs) -> DefenseInfo:
         """
         Apply defense methods to DNA sequences
 
@@ -477,32 +477,32 @@ class GenoArmory:
                 f"Defense method must be one of {list(defense_methods.keys())}"
             )
 
-        result = defense_methods[defense_method](sequence, **kwargs)
+        defense_methods[defense_method](**kwargs)
 
-        # Create defense info
-        defense_info = DefenseInfo(
-            index=len(
-                self._defense_artifacts.get(
-                    f"{defense_method}_{self.model.name_or_path}", []
-                )
-            ),
-            method=defense_method,
-            original_sequence=sequence,
-            protected_sequence=result["protected_sequence"],
-            protection_score=result["protection_score"],
-            computational_cost=result["computational_cost"],
-            robustness_score=result["robustness_score"],
-        )
+        # # Create defense info
+        # defense_info = DefenseInfo(
+        #     index=len(
+        #         self._defense_artifacts.get(
+        #             f"{defense_method}_{self.model.name_or_path}", []
+        #         )
+        #     ),
+        #     method=defense_method,
+        #     original_sequence=sequence,
+        #     protected_sequence=result["protected_sequence"],
+        #     protection_score=result["protection_score"],
+        #     computational_cost=result["computational_cost"],
+        #     robustness_score=result["robustness_score"],
+        # )
 
-        # Add to artifacts
-        artifact = self.read_defense_artifact(defense_method, self.model.name_or_path)
-        artifact.add_defense(defense_info)
+        # # Add to artifacts
+        # artifact = self.read_defense_artifact(defense_method, self.model.name_or_path)
+        # artifact.add_defense(defense_info)
 
-        return defense_info
+        # return defense_info
 
     # Attack method implementations
     def _bert_attack(
-        self, sequence: str, target_label: Optional[int], **kwargs
+        self, **kwargs
     ) -> Dict[str, Any]:
         """BERT-Attack implementation"""
         run_bertattack_attack_script(
@@ -513,6 +513,10 @@ class GenoArmory:
             output_dir=kwargs["output_dir"],
             num_label=kwargs["num_label"],
             k=kwargs["k"],
+            threshold_pred_score=kwargs["threshold_pred_score"],
+            start=kwargs["start"],
+            end=kwargs["end"],
+            use_bpe=kwargs["use_bpe"]
         )
 
     def _textfooler_attack(
@@ -768,7 +772,7 @@ def run_bertattack_attack_script(
     num_label,
     k,
     threshold_pred_score,
-    strat,
+    start,
     end,
     use_bpe=0
 ): 
@@ -789,10 +793,10 @@ def run_bertattack_attack_script(
     print(f"Model Type Detected: {model_type}")
 
     script_name = {
-        'dnabert': 'dnabertattack.py',
-        'hyena': 'hyenaattack.py',
-        'og': 'ogattack.py',
-        'nt': 'ntattack.py'
+        'dnabert': 'BERT-Attack/bertattack.py',
+        'hyena': 'BERT-Attack/hyenaattack.py',
+        'og': 'BERT-Attack/ogattack.py',
+        'nt': 'BERT-Attack/ntattack.py'
     }[model_type]
 
     command = [
@@ -804,7 +808,7 @@ def run_bertattack_attack_script(
         '--num_label', str(num_label),
         '--k', str(k),
         '--threshold_pred_score', str(threshold_pred_score),
-        '--start', str(strat),
+        '--start', str(start),
         '--end', str(end),
         '--use_bpe', str(use_bpe),
     ]
@@ -908,64 +912,6 @@ def run_pgd_attack_script(
         subprocess.run(command, check=True)
         print(f"{task} finished")
 
-def print_graph(folder_path):
-    person_name = os.path.basename(os.path.normpath(folder_path))
-    
-    # Define the output PDF path
-    output_pdf_path = os.path.join(folder_path, "frequency.pdf")
-
-    # Initialize a Counter to count positions
-    position_counter = Counter()
-
-    # Iterate through all JSON files in the folder
-    for filename in os.listdir(folder_path):
-        if filename.endswith('.json'):
-            file_path = os.path.join(folder_path, filename)
-
-            # Open and load the JSON file
-            with open(file_path, 'r') as file:
-                data = json.load(file)
-
-                # Check if the root is a list
-                if isinstance(data, list):
-                    for entry in data:
-                        if isinstance(entry, dict) and entry.get("success") == 4:
-                            # Iterate over the changes and increment position +1
-                            for change in entry.get("changes", []):
-                                position_counter[change[0] + 1] += 1
-                elif isinstance(data, dict) and data.get("success") == 4:
-                    # If the root is a dict, process normally
-                    for change in data.get("changes", []):
-                        position_counter[change[0] + 1] += 1
-
-    # Set font to Times New Roman
-    plt.rcParams['font.family'] = 'DeJavu Serif'
-    plt.rcParams['font.serif'] = ['Times New Roman']
-
-    # Plot the frequency distribution as a bar chart
-    positions = sorted(position_counter.keys())
-    frequencies = [position_counter[pos] for pos in positions]
-
-    plt.bar(positions, frequencies, color='#ff7f0e')
-    plt.xlabel('Position' ,fontsize=16)
-    plt.ylabel('Frequency' ,fontsize=16)
-    plt.title(f'{person_name}' ,fontsize=18)  # Set title with extracted name
-    plt.xticks(positions ,fontsize=16)
-    plt.yticks(fontsize=16)
-
-    plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-
-    # Remove the top and right spines
-    plt.gca().spines['top'].set_visible(False)
-    plt.gca().spines['right'].set_visible(False)
-
-    plt.tight_layout()
-
-    # Save the plot to a PDF file
-    plt.savefig(output_pdf_path)
-    plt.close()
-
-    print(f"Processing complete for folder: {folder_path}")
 
 
 def main():
@@ -1093,20 +1039,33 @@ def main():
             attack_method=args.method,
             **kwargs,
         )
-        results.append(result)
-        print(result)
+        
 
-    elif args.command == "defend":
-        kwargs = json.loads(args.params) if args.params else {}
-        df = pd.read_csv(args.input_csv)
-        sequences = df['sequence'].tolist()
-        results = []
-        for seq in sequences:
-            result = armory.defend(
-                sequence=seq, defense_method=args.method, **kwargs
-            )
-            results.append(result)
-            print(result)
+    elif args.command == "defense":
+        if args.params_file:
+            try:
+                with open(args.params_file, "r") as f:
+                    kwargs = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in params file '{args.params_file}': {e}")
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Params file '{args.params_file}' not found.")
+        elif args.params:
+            try:
+                kwargs = json.loads(args.params)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in --params: {e}")
+        else:
+            kwargs = {}
+
+        print("Loaded parameters:", kwargs)
+
+        
+        
+        result = armory.defense(
+            defense_method=args.method, **kwargs
+        )
+
 
     else:
         raise RuntimeError("The commend is not support")

@@ -25,20 +25,34 @@ pip install genoarmory
 
 ```python
 # Initialize model
-from genoarmory import DNAModel
+from GenoArmory import GenoArmory
+import json
+# You need to initialize GenoArmory with a model and tokenizer.
+# For visualization, you don't need a real model/tokenizer, so you can use None if the method doesn't use them.
+gen = GenoArmory(model=None, tokenizer=None)
+params_file = '/projects/p32013/DNABERT-meta/scripts/PGD/pgd_dnabert.json'
 
-model = DNAModel(model_name="dnabert-v1", api_key="your-api-key")
-
-# Perform attack
-sequences = ["ATCGGTCA", "GCTATAGC"]
-responses = model.query(
-    sequences=sequences,
-    attack_method="bertattack"
+# Visulization
+gen.visualization(
+    folder_path='/projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test',
+    output_pdf_path='/projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test'
 )
 
-# Apply defense
-defense = model.get_defense(defense_method="adfar", epsilon=0.1)
-response = defense.query(sequence="ATCGGTCA")
+# Attack
+if params_file:
+  try:
+      with open(params_file, "r") as f:
+          kwargs = json.load(f)
+  except json.JSONDecodeError as e:
+      raise ValueError(f"Invalid JSON in params file '{params_file}': {e}")
+  except FileNotFoundError:
+      raise FileNotFoundError(f"Params file '{params_file}' not found.")
+
+gen.attack(
+    attack_method='pgd',
+    model_path='magicslabnu/GERM',
+    **kwargs
+)
 ```
 
 ## Command Line Usage
@@ -47,13 +61,13 @@ GenoArmory can also be used from the command line:
 
 ```bash
 # Attack
-genoarmory attack --sequence "ATCGGTCA" --method bertattack
+python GenoArmory.py --model_path magicslabnu/GERM attack --method pgd --params_file /projects/p32013/DNABERT-meta/scripts/PGD/pgd_dnabert.json
 
 # Defense
 genoarmory defend --sequence "ATCGGTCA" --method adfar
 
 # Visualization
-genoarmory visualize --sequences "ATCGGTCA" "GCTATAGC" --save-path "attention.png"
+python GenoArmory.py --model_path magicslabnu/GERM visualize --folder_path /projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test --save_path /projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test/frequency.pdf
 ```
 
 ## Features
