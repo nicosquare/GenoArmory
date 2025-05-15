@@ -1,14 +1,9 @@
 {
-  "tasks": [
-    "H3"
-  ],
   "model": "dnabert",
   "data_path": "GUE/H3/cat.csv",
   "tgt_path": "magicslabnu/DNABERT-2-finetuned-H3",
-  "mlm_path": "magicslabnu/GERM",
+  "mlm_path": "zhihan1996/DNABERT-2-117M",
   "output_dir": "test/BertAttack/H3",
-  "attack_script_path": "TextFooler/attack_classification_general.py",
-  "task_name": "0",
   "num_label": 2,
   "threshold_pred_score": 0,
   "start": 0,

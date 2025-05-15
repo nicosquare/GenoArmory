@@ -470,7 +470,7 @@ class GenoArmory:
         Returns:
             DefenseInfo object containing defense results
         """
-        defense_methods = {"adfar": self._adfar_defense, "freelb": self._freelb_defense}
+        defense_methods = {"adfar": self._adfar_defense, "freelb": self._freelb_defense, "at": self._at_defense}
 
         if defense_method not in defense_methods:
             raise ValueError(
@@ -617,9 +617,178 @@ class GenoArmory:
 
     # Defense method implementations
     def _adfar_defense(self, **kwargs) -> Dict[str, Any]:
-        """ADFAR defense implementation"""
-        # Implementation will be added
-        pass
+        """ADFAR defense implementation: runs the adversarial training pipeline as in run_nt1.py."""
+
+        # Extract parameters from kwargs or set defaults
+        tasks = kwargs.get('tasks')
+        if not tasks:
+            raise ValueError("ADFAR defense requires a 'tasks' argument in kwargs.")
+        
+        base_dir = kwargs.get('base_dir', './GUE')
+        model_type = kwargs.get('model_type', 'bert')
+        textfooler_dir = kwargs.get('textfooler_dir', './TextFooler')
+        adv_results_dir = kwargs.get('adv_results_dir', 'adv_results')
+        adfar_src_dir = kwargs.get('adfar_src_dir', './ADFAR/src')
+        experiments_dir = kwargs.get('experiments_dir', f'{adfar_src_dir}/experiments/GUE')
+        datasize = kwargs.get('datasize', 9662)
+        num_classes = kwargs.get('num_classes', 2)
+        batch_size = kwargs.get('batch_size', 32)
+        max_seq_length = kwargs.get('max_seq_length', 256)
+        train_batch_size = kwargs.get('train_batch_size', 2)
+        eval_batch_size = kwargs.get('eval_batch_size', 2)
+        num_train_epochs = kwargs.get('num_train_epochs', 5)
+        learning_rate = kwargs.get('learning_rate', 3e-5)
+
+        results = {}
+        for task in tasks:
+            dataset_path = os.path.join(base_dir, task, 'cat.csv')
+            target_model_path = kwargs["target_model_path"]
+
+            # 1.2 Use TextFooler as the attack method to produce adversarial examples:
+            command3 = [
+                'python', 'attack_classification_simplified.py',
+                '--dataset_path', dataset_path,
+                '--target_model', model_type,
+                '--target_model_path', target_model_path,
+                '--max_seq_length', str(max_seq_length),
+                '--batch_size', str(batch_size),
+                '--counter_fitting_embeddings_path', f'{textfooler_dir}/embeddings/subword_{model_type}_embeddings.txt',
+                '--counter_fitting_cos_sim_path', f'{textfooler_dir}/cos_sim_counter_fitting/cos_sim_counter_fitting_{model_type}.npy',
+                '--USE_cache_path', f'{textfooler_dir}/tf_cache',
+                '--nclasses', str(num_classes),
+                '--output_dir', f'{adv_results_dir}/{mdoel_type}/{task}'
+            ]
+
+            command4 = [
+                'python', 'get_pure_adversaries.py',
+                '--adversaries_path', f'{adv_results_dir}/{model_type}/{task}/adversaries.txt',
+                '--output_path', f'{base_dir}/{task}/{model_type}/attacked_data',
+                '--times', '1',
+                '--change', '0',
+                '--txtortsv', 'tsv',
+                '--datasize', str(datasize)
+            ]
+
+            command5 = [
+                'python', 'combine_data.py',
+                '--add_file', f'{base_dir}/{task}/{model_type}/attacked_data/pure_adversaries.tsv',
+                '--change_label', '2',
+                '--original_dataset', f'{base_dir}/{task}',
+                '--output_path', f'{base_dir}/{task}/{model_type}/combined_data/2times_adv_0-3/',
+                '--isMR', '0'
+            ]
+
+            command6 = [
+                'python', 'run_simplification.py',
+                '--complex_threshold', '3000',
+                '--ratio', '0.25',
+                '--syn_num', '20',
+                '--most_freq_num', '10',
+                '--simplify_version', 'random_freq_v1',
+                '--cos_sim_file', f'{textfooler_dir}/cos_sim_counter_fitting/cos_sim_counter_fitting_{task}.npy',
+                '--counterfitted_vectors', f'{textfooler_dir}/embeddings/subword_{task}_embeddings.txt',
+                '--file_to_simplify', f'{base_dir}/{task}/{model_type}/combined_data/2times_adv_0-3/train.tsv',
+                '--output_path', f'{base_dir}/{task}/{model_type}/simplified_data/2times_adv_0-3/',
+                '--freq_file', f'{base_dir}/{task}/subword_frequencies.json'
+            ]
+
+            command7 = [
+                'python', 'combine_data.py',
+                '--add_file', f'{base_dir}/{task}/{model_type}/simplified_data/2times_adv_0-3/train.tsv',
+                '--change_label', '4',
+                '--original_dataset', f'{base_dir}/{task}/{model_type}/combined_data/2times_adv_0-3/',
+                '--output_path', f'{base_dir}/{task}/{model_type}/combined_data/4times_adv_0-7/',
+                '--isMR', '0'
+            ]
+
+            command8 = [
+                'python', 'run_classification_adv.py',
+                '--task_name', dataset_dir,
+                '--max_seq_len', '128',
+                '--do_train',
+                '--do_eval',
+                '--attention', '2',
+                '--data_dir', f'{base_dir}/{task}/{model_type}/combined_data/4times_adv_0-7/',
+                '--output_dir', f'{experiments_dir}/{task}/{model_type}/4times_adv_double_0-7',
+                '--model_name_or_path', target_model_path,
+                '--per_device_train_batch_size', str(train_batch_size),
+                '--per_device_eval_batch_size', str(eval_batch_size),
+                '--save_total_limit', '2',
+                '--learning_rate', str(learning_rate),
+                '--num_train_epochs', str(num_train_epochs),
+                '--svd_reserve_size', '0',
+                '--evaluation_strategy', 'epoch',
+                '--overwrite_output_dir',
+                '--model_type', task,
+                '--overwrite_cache'
+            ]
+
+            # Run all commands in order, in the ADFAR/src directory
+            os.chdir(adfar_src_dir)
+            for idx, cmd in enumerate([command3, command4, command5, command6, command7, command8], start=3):
+                print(f"[ADFAR] Running command{idx}: {' '.join(cmd)}")
+                subprocess.run(cmd, check=True)
+            
+            # After training, run only the specified attacks for this task/model
+            if "bertattack" in attack_methods:
+                print(f"Running bertattack on FreeLB-trained model for task: {task}")
+                run_bertattack_attack_script(
+                    data_path=kwargs["data_path"],
+                    mlm_path=kwargs["mlm_path"],
+                    tgt_path=kwargs["tgt_path"],
+                    model=kwargs["attack_model_type"],
+                    output_dir=kwargs["output_dir"],
+                    num_label=kwargs["num_label"],
+                    k=kwargs["k"],
+                    threshold_pred_score=kwargs["threshold_pred_score"],
+                    start=kwargs["start"],
+                    end=kwargs["end"],
+                    use_bpe=kwargs["use_bpe"]
+                )
+            if "textfooler" in attack_methods:
+                print(f"Running textfooler on FreeLB-trained model for task: {task}")
+                run_textfooler_attack_script(
+                    base_dir=kwargs["gue_dir"],
+                    tasks=kwargs["tasks"],
+                    target_model=kwargs["attack_model_type"],
+                    target_model_path=kwargs["target_model_path"],
+                    num_label=kwargs["num_label"],
+                    output_dir_base=kwargs["output_dir_base"],
+                    attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
+                )
+            if "pgd" in attack_methods:
+                print(f"Running pgd on FreeLB-trained model for task: {task}")
+                model_type = None
+                    
+                if any(key in model for key in ['dnabert', 'dnabert-2']):
+                    model_type = 'bert'
+                elif any(key in model for key in ['hyenadna']):
+                    model_type = 'hyena'
+                elif any(key in model for key in ['genomeocean', 'og']):
+                    model_type = 'og'
+                elif any(key in model for key in ['nt1']):
+                    model_type = 'nt1'
+                elif any(key in model for key in ['nt2']):
+                    model_type = 'nt2'
+
+                run_pgd_attack_script(
+                    tasks=kwargs["tasks"],
+                    model=kwargs["model"],
+                    data_base_dir=kwargs["gue_dir"],
+                    model_base_dir=output_dir,
+                    output_base_dir=os.path.join(output_base_dir, "PGD"),
+                    tokenizer_base_dir=output_dir,
+                    model_type=model_type,
+                    test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
+                    task_name=kwargs.get("task_name", "0"),
+                    num_label=kwargs.get("num_label", "2"),
+                    n_gpu=kwargs.get("n_gpu", "1"),
+                    max_seq_length=kwargs.get("max_seq_length", "256"),
+                    batch_size=kwargs.get("batch_size", "16"),
+                )
+
+
+
 
     def _freelb_defense(self, **kwargs) -> Dict[str, Any]:
         """
@@ -639,10 +808,12 @@ class GenoArmory:
 
         tasks = kwargs["tasks"]
         model = kwargs["model"]
+        attack_model_type = kwargs["attack_model_type"]
         attack_methods = kwargs.get("attack_methods", ["bertattack", "textfooler", "pgd"])
         project_root = kwargs.get("project_root", "./FreeLB/huggingface-transformers")
-        log_dir = kwargs.get("log_dir", os.path.join(project_root, "logs"))
-        ckpt_dir = kwargs.get("ckpt_dir", os.path.join(project_root, "checkpoints"))
+        output_dir_base = kwargs.get("output_dir_base", "./test/FreeLB")
+        log_dir = kwargs.get("log_dir", os.path.join(output_dir_base, "logs"))
+        ckpt_dir = kwargs.get("ckpt_dir", os.path.join(output_dir_base, "checkpoints"))
         gue_dir = kwargs.get("gue_dir", "./GUE")
         script_glue_freelb2 = os.path.join(project_root, "examples", "run_glue_freelb2.py")
         script_glue_freelb3 = os.path.join(project_root, "examples", "run_glue_freelb3.py")
@@ -666,7 +837,7 @@ class GenoArmory:
         gpu = str(kwargs.get("gpu", 0))
 
         for task in tasks:
-            mname = f"/scratch/hlv8980/Attack_Benchmark/models/{model}/{task}/origin"
+            mname = kwargs["target_model_path"]
             model_type = model
             expname = f"{model_type}_{task}"
             if model_type == "hyena":
@@ -721,23 +892,24 @@ class GenoArmory:
             if "bertattack" in attack_methods:
                 print(f"Running bertattack on FreeLB-trained model for task: {task}")
                 run_bertattack_attack_script(
-                    data_path=os.path.join(gue_dir, task, "test.csv"),
-                    mlm_path=mname,
-                    tgt_path=os.path.join(gue_dir, task, "test.csv"),
-                    model=model,
-                    output_dir=os.path.join(output_dir, "bertattack"),
-                    num_label=num_label,
-                    k=kwargs.get("k", 5),
-                    threshold_pred_score=kwargs.get("threshold_pred_score", 0.0),
-                    strat=kwargs.get("start", 0),
-                    end=kwargs.get("end", 1000)
+                    data_path=kwargs["data_path"],
+                    mlm_path=kwargs["mlm_path"],
+                    tgt_path=kwargs["tgt_path"],
+                    model=kwargs["attack_model_type"],
+                    output_dir=kwargs["output_dir"],
+                    num_label=kwargs["num_label"],
+                    k=kwargs["k"],
+                    threshold_pred_score=kwargs["threshold_pred_score"],
+                    start=kwargs["start"],
+                    end=kwargs["end"],
+                    use_bpe=kwargs["use_bpe"]
                 )
             if "textfooler" in attack_methods:
                 print(f"Running textfooler on FreeLB-trained model for task: {task}")
                 run_textfooler_attack_script(
-                    base_dir=kwargs["base_dir"],
+                    base_dir=kwargs["gue_dir"],
                     tasks=kwargs["tasks"],
-                    target_model=kwargs["model"],
+                    target_model=kwargs["attack_model_type"],
                     target_model_path=kwargs["target_model_path"],
                     num_label=kwargs["num_label"],
                     output_dir_base=kwargs["output_dir_base"],
@@ -745,23 +917,178 @@ class GenoArmory:
                 )
             if "pgd" in attack_methods:
                 print(f"Running pgd on FreeLB-trained model for task: {task}")
+                model_type = None
+                    
+                if any(key in model for key in ['dnabert', 'dnabert-2']):
+                    model_type = 'bert'
+                elif any(key in model for key in ['hyenadna']):
+                    model_type = 'hyena'
+                elif any(key in model for key in ['genomeocean', 'og']):
+                    model_type = 'og'
+                elif any(key in model for key in ['nt1']):
+                    model_type = 'nt1'
+                elif any(key in model for key in ['nt2']):
+                    model_type = 'nt2'
+
                 run_pgd_attack_script(
-                    tasks=[task],
-                    model=model,
-                    data_base_dir=gue_dir,
-                    model_base_dir=f"/scratch/hlv8980/Attack_Benchmark/models",
-                    output_base_dir=os.path.join(output_dir, "pgd"),
-                    tokenizer_base_dir=f"/scratch/hlv8980/Attack_Benchmark/models",
+                    tasks=kwargs["tasks"],
+                    model=kwargs["model"],
+                    data_base_dir=kwargs["gue_dir"],
+                    model_base_dir=output_dir,
+                    output_base_dir=os.path.join(output_base_dir, "PGD"),
+                    tokenizer_base_dir=output_dir,
+                    model_type=model_type,
                     test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
-                    task_name=kwargs.get("task_name", task),
-                    num_label=num_label,
-                    n_gpu=kwargs.get("n_gpu", 1),
-                    max_seq_length=seqlen,
-                    batch_size=bsize,
-                    model_type=model
+                    task_name=kwargs.get("task_name", "0"),
+                    num_label=kwargs.get("num_label", "2"),
+                    n_gpu=kwargs.get("n_gpu", "1"),
+                    max_seq_length=kwargs.get("max_seq_length", "256"),
+                    batch_size=kwargs.get("batch_size", "16"),
                 )
 
+    def _at_defense(self, **kwargs) -> Dict[str, Any]:
+        """
+        AT defense implementation:
+        - Runs AT adversarial training for each task
+        - After training, runs the specified attacks (bertattack, textfooler, pgd) for each task/model, as given in attack_methods
+        - Returns a dummy result for now
 
+        kwargs should include:
+            - tasks: list of task names
+            - model: model name or huggingface path
+            - attack_methods: list of attack names to run (e.g., ['bertattack', 'pgd'])
+            - project_root: path to AT project root
+            - data_dir_base: base path to the GUE dataset
+            - output_dir_base: base path to save trained models
+            - other training parameters: learning_rate, batch_size, epochs, etc.
+        """
+
+        tasks = kwargs["tasks"]
+        model = kwargs.get("model", "zhihan1996/DNABERT-2-117M")
+        data_dir_base = kwargs.get("data_dir_base", "./GUE")
+        project_root = kwargs.get("project_root", "./AT")
+        output_dir_base = kwargs.get("output_dir_base", "./test/AT")
+
+        # Hyperparameters
+        kmer = str(kwargs.get("kmer", -1))
+        model_max_length = str(kwargs.get("model_max_length", 256))
+        train_batch_size = str(kwargs.get("train_batch_size", 64))
+        eval_batch_size = str(kwargs.get("eval_batch_size", 64))
+        grad_accum = str(kwargs.get("gradient_accumulation_steps", 1))
+        learning_rate = str(kwargs.get("learning_rate", 3e-5))
+        epochs = str(kwargs.get("num_train_epochs", 4))
+        save_steps = str(kwargs.get("save_steps", 200))
+        eval_steps = str(kwargs.get("eval_steps", 200))
+        warmup_ratio = str(kwargs.get("warmup_ratio", 0.05))
+        logging_steps = str(kwargs.get("logging_steps", 100))
+        seed = str(kwargs.get("seed", 42))
+
+        # Set environment variables
+        os.environ["WANDB_DISABLED"] = "true"
+        os.environ["DATA_CACHE_DIR"] = ".hf_data"
+        os.environ["MODEL_CACHE_DIR"] = ".hf_cache"
+
+        # Change to project directory
+        os.makedirs(output_dir_base, exist_ok=True)
+        os.chdir(project_root)
+
+        for task in tasks:
+            print(f"Running AT training for task: {task}")
+
+            data_path = os.path.join(data_dir_base, task)
+            output_dir = os.path.join(output_dir_base, task)
+            run_name = f"AT_{model}_{task}"
+
+            command = [
+                "python", "train.py",
+                "--model_name_or_path", model,
+                "--data_path", data_path,
+                "--kmer", kmer,
+                "--run_name", run_name,
+                "--model_max_length", model_max_length,
+                "--per_device_train_batch_size", train_batch_size,
+                "--per_device_eval_batch_size", eval_batch_size,
+                "--gradient_accumulation_steps", grad_accum,
+                "--learning_rate", learning_rate,
+                "--num_train_epochs", epochs,
+                "--fp16",
+                "--save_steps", save_steps,
+                "--output_dir", output_dir,
+                "--evaluation_strategy", "steps",
+                "--eval_steps", eval_steps,
+                "--warmup_ratio", warmup_ratio,
+                "--logging_steps", logging_steps,
+                "--overwrite_output_dir", "True",
+                "--log_level", "info",
+                "--find_unused_parameters", "False",
+                "--save_model", "False"
+            ]
+
+            # Execute and log output
+            log_file = os.path.join(output_dir, "train.log")
+            os.makedirs(output_dir, exist_ok=True)
+            with open(log_file, "w") as lf:
+                subprocess.run(command, check=True, stdout=lf, stderr=lf)
+
+            print(f"---\n{task} AT training finished\n---")
+
+            # After training, run only the specified attacks for this task/model
+            if "bertattack" in attack_methods:
+                print(f"Running bertattack on FreeLB-trained model for task: {task}")
+                run_bertattack_attack_script(
+                    data_path=kwargs["data_path"],
+                    mlm_path=kwargs["mlm_path"],
+                    tgt_path=kwargs["tgt_path"],
+                    model=kwargs["attack_model_type"],
+                    output_dir=kwargs["output_dir"],
+                    num_label=kwargs["num_label"],
+                    k=kwargs["k"],
+                    threshold_pred_score=kwargs["threshold_pred_score"],
+                    start=kwargs["start"],
+                    end=kwargs["end"],
+                    use_bpe=kwargs["use_bpe"]
+                )
+            if "textfooler" in attack_methods:
+                print(f"Running textfooler on FreeLB-trained model for task: {task}")
+                run_textfooler_attack_script(
+                    base_dir=kwargs["gue_dir"],
+                    tasks=kwargs["tasks"],
+                    target_model=kwargs["attack_model_type"],
+                    target_model_path=kwargs["target_model_path"],
+                    num_label=kwargs["num_label"],
+                    output_dir_base=kwargs["output_dir_base"],
+                    attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
+                )
+            if "pgd" in attack_methods:
+                print(f"Running pgd on FreeLB-trained model for task: {task}")
+                model_type = None
+                    
+                if any(key in model for key in ['dnabert', 'dnabert-2']):
+                    model_type = 'bert'
+                elif any(key in model for key in ['hyenadna']):
+                    model_type = 'hyena'
+                elif any(key in model for key in ['genomeocean', 'og']):
+                    model_type = 'og'
+                elif any(key in model for key in ['nt1']):
+                    model_type = 'nt1'
+                elif any(key in model for key in ['nt2']):
+                    model_type = 'nt2'
+
+                run_pgd_attack_script(
+                    tasks=kwargs["tasks"],
+                    model=kwargs["model"],
+                    data_base_dir=kwargs["gue_dir"],
+                    model_base_dir=output_dir,
+                    output_base_dir=os.path.join(output_base_dir, "PGD"),
+                    tokenizer_base_dir=output_dir,
+                    model_type=model_type,
+                    test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
+                    task_name=kwargs.get("task_name", "0"),
+                    num_label=kwargs.get("num_label", "2"),
+                    n_gpu=kwargs.get("n_gpu", "1"),
+                    max_seq_length=kwargs.get("max_seq_length", "256"),
+                    batch_size=kwargs.get("batch_size", "16"),
+                )
 
 def run_bertattack_attack_script(
     data_path,
@@ -778,13 +1105,13 @@ def run_bertattack_attack_script(
 ): 
     model_type = None
 
-    if model.lower() in ['dnabert', 'dnabert-2']:
+    if any(key in model for key in ['dnabert', 'dnabert-2']):
         model_type = 'dnabert'
-    elif model.lower() in ['hyenadna']:
+    elif any(key in model for key in ['hyenadna']):
         model_type = 'hyena'
-    elif model.lower() in ['genomeocean', 'og']:
+    elif any(key in model for key in ['genomeocean', 'og']):
         model_type = 'og'
-    elif model.lower() in ['nt1', 'nt2']:
+    elif any(key in model for key in ['nt1', 'nt2']):
         model_type = 'nt'
 
     if model_type is None:
@@ -969,11 +1296,13 @@ def main():
     )
 
     # Defense command
-    defense_parser = subparsers.add_parser("defend", help="Apply a defense")
-    defense_parser.add_argument("--input-csv", required=True, help="Path to CSV file with DNA sequences (column: 'sequence')")
+    defense_parser = subparsers.add_parser("defense", help="Apply a defense")
     defense_parser.add_argument("--method", required=True, choices=["adfar", "freelb"])
     defense_parser.add_argument(
         "--params", type=str, help="Additional parameters in JSON format"
+    )
+    defense_parser.add_argument(
+        "--params_file", type=str, help="Path to a JSON file containing parameters"
     )
 
     # Defense query command
