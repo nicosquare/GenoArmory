@@ -15,7 +15,10 @@
   "learning_rate": 3e-5,
   "num_train_epochs": 4,
   "save_steps": 200,
-  
+  "eval_steps": 200,
+  "warmup_ratio": 0.05,
+  "logging_steps": 200,
+  "seed": 42,
   "project_root": "./AT",
   "gue_dir": "./GUE"
 }
