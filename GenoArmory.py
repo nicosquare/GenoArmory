@@ -17,20 +17,62 @@ from collections import Counter
 from matplotlib.ticker import MaxNLocator
 
 
+@dataclass
+class MethodParameters:
+    num_label: int
+    use_bpq: int
+    k: int
+    threshold_pred_score: float
+    start: int
+    end: int
+
+@dataclass
+class AdversarialAttack:
+    index: int
+    datasets: str
+    total_number_of_sequences: int
+    asr: float
+    average_queries: Union[float, str]
+    origin_acc: float
+    after_attack_acc: float
+
+@dataclass
+class AttackParameters:
+    method: str
+    model: str
+    attack_type: str
+    defense: Optional[str]
+    attack_success_rate: float
+    total_number_of_sequences: int
+    evaluation_date: str
+    method_parameters: MethodParameters
 
 @dataclass
 class AttackMetadata:
-    """Metadata for attack methods"""
+    parameters: AttackParameters
+    adversarial_attacks: List[AdversarialAttack] = field(default_factory=list)
 
-    method: str
-    model_name: str
-    description: str
-    date_created: str = field(
-        default_factory=lambda: datetime.datetime.now().isoformat()
-    )
-    asr: float = 0.0
-    average_queries: float = 0.0
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    @staticmethod
+    def from_json(data: dict) -> "AttackMetadata":
+
+        method_params = MethodParameters(**data["parameters"]["method_parameters"])
+
+        parameters = AttackParameters(
+            method=data["parameters"]["method"],
+            model=data["parameters"]["model"],
+            attack_type=data["parameters"]["attack_type"],
+            defense=data["parameters"]["defense"],
+            attack_success_rate=data["parameters"]["attack_success_rate"],
+            total_number_of_sequences=data["parameters"]["total_number_of_sequences"],
+            evaluation_date=data["parameters"]["evaluation_date"],
+            method_parameters=method_params
+        )
+
+        attacks = [
+            AdversarialAttack(**entry)
+            for entry in data["adversarial_attacks"]
+        ]
+        return AttackMetadata(parameters=parameters, adversarial_attacks=attacks)
 
 
 @dataclass
@@ -39,6 +81,7 @@ class DefenseMetadata:
 
     method: str
     model_name: str
+    attack_method: str
     description: str
     date_created: str = field(
         default_factory=lambda: datetime.datetime.now().isoformat()
@@ -138,141 +181,6 @@ class DefenseArtifact:
         return len(self.defenses)
 
 
-class DNADefense:
-    """Base class for DNA sequence defenses"""
-
-    def __init__(self, target_model: "DNAModel", **kwargs):
-        self.target_model = target_model
-        self.config = kwargs
-
-    def query(self, sequence: str, **kwargs) -> DefenseInfo:
-        """
-        Apply defense to a sequence and return defense info
-
-        Args:
-            sequence: Input DNA sequence
-            **kwargs: Additional arguments for the defense method
-
-        Returns:
-            DefenseInfo object containing defense results
-        """
-        raise NotImplementedError("Subclasses must implement query method")
-
-
-class ADFARDefense(DNADefense):
-    """ADFAR (Adversarial Training with Fast Adaptation and Regularization) defense"""
-
-    def __init__(self, target_model: "DNAModel", epsilon: float = 0.1, **kwargs):
-        super().__init__(target_model, epsilon=epsilon, **kwargs)
-
-    def query(self, sequence: str, **kwargs) -> DefenseInfo:
-        """Apply ADFAR defense to a sequence"""
-        armory = GenoArmory(
-            self.target_model.model,
-            self.target_model.tokenizer,
-            device=self.target_model.config.device,
-        )
-        return armory.defend(
-            sequence=sequence,
-            defense_method="adfar",
-            epsilon=self.config["epsilon"],
-            **kwargs,
-        )
-
-
-class FreeLBDefense(DNADefense):
-    """FreeLB (Free Large-Batch) defense"""
-
-    def __init__(self, target_model: "DNAModel", batch_size: int = 32, **kwargs):
-        super().__init__(target_model, batch_size=batch_size, **kwargs)
-
-    def query(self, sequence: str, **kwargs) -> DefenseInfo:
-        """Apply FreeLB defense to a sequence"""
-        armory = GenoArmory(
-            self.target_model.model,
-            self.target_model.tokenizer,
-            device=self.target_model.config.device,
-        )
-        return armory.defend(
-            sequence=sequence,
-            defense_method="freelb",
-            batch_size=self.config["batch_size"],
-            **kwargs,
-        )
-
-
-class DNAModel:
-    """Interface for DNA sequence models"""
-
-    def __init__(
-        self,
-        model_name: str,
-        device: Optional[str] = None,
-    ):
-
-        self.config = AutoConfig.from_pretrained(model_name, num_labels=self.config.num_labels)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, config=self.config, trust_remote_code=True)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        self.model.to(self.config.device)
-
-    def get_defense(self, defense_method: str, **kwargs) -> DNADefense:
-        """
-        Get a defense wrapper for this model
-
-        Args:
-            defense_method: One of ['adfar', 'freelb']
-            **kwargs: Additional arguments for the defense method
-
-        Returns:
-            DNADefense object
-        """
-        defense_classes = {"adfar": ADFARDefense, "freelb": FreeLBDefense}
-
-        if defense_method not in defense_classes:
-            raise ValueError(
-                f"Defense method must be one of {list(defense_classes.keys())}"
-            )
-
-        return defense_classes[defense_method](self, **kwargs)
-
-    def query(
-        self,
-        sequences: List[str],
-        attack_method: str,
-        target_labels: Optional[List[int]] = None,
-        **kwargs,
-    ) -> List[AttackInfo]:
-        """
-        Query the model with multiple sequences for attack
-
-        Args:
-            sequences: List of DNA sequences to attack
-            attack_method: Attack method to use
-            target_labels: Optional list of target labels for each sequence
-            **kwargs: Additional arguments for the attack method
-
-        Returns:
-            List of AttackInfo objects containing attack results
-        """
-        if target_labels is None:
-            target_labels = [None] * len(sequences)
-        elif len(target_labels) != len(sequences):
-            raise ValueError("Number of target labels must match number of sequences")
-
-        armory = GenoArmory(self.model, self.tokenizer, device=self.config.device)
-        results = []
-
-        for sequence, target in zip(sequences, target_labels):
-            result = armory.attack(
-                sequence=sequence,
-                attack_method=attack_method,
-                target_label=target,
-                **kwargs,
-            )
-            results.append(result)
-
-        return results
-
 
 class GenoArmory:
     def __init__(
@@ -297,7 +205,7 @@ class GenoArmory:
         self._defense_artifacts: Dict[str, DefenseArtifact] = {}
 
     @classmethod
-    def from_pretrained(cls, model_path: str, device: Optional[str] = None, num_labels: int = 2):
+    def from_pretrained(model_path: str, device: Optional[str] = None, num_labels: int = 2):
         """Load GenoArmory from a pretrained model"""
         if 'bert' in model_path:
             config = BertConfig.from_pretrained(model_path, num_labels=num_labels)
@@ -305,7 +213,7 @@ class GenoArmory:
             config = AutoConfig.from_pretrained(model_path, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(model_path, config=config, trust_remote_code=True)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        return cls(
+        return (
             model,
             tokenizer,
             device=device or ("cuda" if torch.cuda.is_available() else "cpu"),
@@ -338,20 +246,36 @@ class GenoArmory:
     def get_attack_metadata(
         self, method: str, model_name: str
     ) -> Optional[AttackMetadata]:
-        """Get metadata for a specific attack method and model"""
-        key = f"{method}_{model_name}"
-        if key in self._attack_artifacts:
-            return self._attack_artifacts[key].metadata
-        return None
+        """Get metadata for a specific attack method and model, loading from disk if available."""
+        metadata_path = f"/projects/p32013/DNABERT-meta/metadata/{method}/{model_name}.json"
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                data = json.load(f)
+            # Convert loaded dict to AttackMetadata (handles missing fields with defaults)
+            return AttackMetadata(
+                method=data.get("method", method),
+                model_name=data.get("model_name", model_name),
+                description=data.get("description", ""),
+                date_created=data.get("date_created", ""),
+                asr=data.get("asr", 0.0),
+                average_queries=data.get("average_queries", 0.0),
+                parameters=data.get("parameters", {}),
+            )
+        else:
+            return None
+
 
     def get_defense_metadata(
-        self, method: str, model_name: str
+        self, method: str, model_name: str, attack_method: str
     ) -> Optional[DefenseMetadata]:
         """Get metadata for a specific defense method and model"""
-        key = f"{method}_{model_name}"
-        if key in self._defense_artifacts:
-            return self._defense_artifacts[key].metadata
-        return None
+        metadata_path = f"/projects/p32013/DNABERT-meta/metadata/{method}/{model_name}-{attack_method}.json"
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                data = json.load(f)
+            return DefenseMetadata(**data)
+        else:
+            return None
 
     def visualization(self, **kwargs) -> None:
         """
