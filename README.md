@@ -17,8 +17,11 @@
 
 You can install GenoArmory using pip:
 
+Also you can install from source code
 ```bash
-pip install genoarmory
+git clone https://github.com/MAGICS-LAB/GenoArmory.git
+conda create -n genoarmory pip=3.9
+pip install .
 ```
 
 ## Quick Start
