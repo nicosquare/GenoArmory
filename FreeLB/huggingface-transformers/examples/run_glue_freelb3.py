@@ -29,10 +29,11 @@ import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
+from torch.optim import AdamW
 
 from transformers import (
     AutoConfig, AutoTokenizer, BertConfig, WEIGHTS_NAME, 
-    AdamW, get_linear_schedule_with_warmup
+    get_linear_schedule_with_warmup
 )
 
 from DNABERT2.modeling_hyena import HyenaDNAForSequenceClassification

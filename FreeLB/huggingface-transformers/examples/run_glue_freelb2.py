@@ -29,15 +29,16 @@ import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
+from torch.optim import AdamW
 
 from transformers import (
     AutoConfig,
     AutoTokenizer,
     BertConfig,
     WEIGHTS_NAME,
-    AdamW,
     get_linear_schedule_with_warmup,
 )
+
 from DNABERT2.bert_layers import DNABertForSequenceClassification
 from DNABERT2.modeling_esm import EsmForSequenceClassification
 from DNABERT2.modeling_esm2 import (
@@ -676,13 +677,13 @@ def evaluate(args, model, tokenizer, prefix="", global_step=None, experiment=Non
             tokenizer.save_pretrained(output_dir)
 
         output_eval_file = os.path.join(eval_output_dir, prefix, "eval_results.txt")
-        with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results {} *****".format(prefix))
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-                if experiment is not None:
-                    experiment.log_metric(key, result[key], global_step)
+        # with open(output_eval_file, "w") as writer:
+        #     logger.info("***** Eval results {} *****".format(prefix))
+        #     for key in sorted(result.keys()):
+        #         logger.info("  %s = %s", key, str(result[key]))
+        #         writer.write("%s = %s\n" % (key, str(result[key])))
+        #         if experiment is not None:
+        #             experiment.log_metric(key, result[key], global_step)
 
     return results
 

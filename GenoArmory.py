@@ -18,15 +18,6 @@ from matplotlib.ticker import MaxNLocator
 
 
 @dataclass
-class MethodParameters:
-    num_label: int
-    use_bpq: int
-    k: int
-    threshold_pred_score: float
-    start: int
-    end: int
-
-@dataclass
 class AdversarialAttack:
     index: int
     datasets: str
@@ -45,7 +36,7 @@ class AttackParameters:
     attack_success_rate: float
     total_number_of_sequences: int
     evaluation_date: str
-    method_parameters: MethodParameters
+    method_parameters: Dict[str, Any]
 
 @dataclass
 class AttackMetadata:
@@ -55,7 +46,6 @@ class AttackMetadata:
     @staticmethod
     def from_json(data: dict) -> "AttackMetadata":
 
-        method_params = MethodParameters(**data["parameters"]["method_parameters"])
 
         parameters = AttackParameters(
             method=data["parameters"]["method"],
@@ -65,7 +55,7 @@ class AttackMetadata:
             attack_success_rate=data["parameters"]["attack_success_rate"],
             total_number_of_sequences=data["parameters"]["total_number_of_sequences"],
             evaluation_date=data["parameters"]["evaluation_date"],
-            method_parameters=method_params
+            method_parameters=data["parameters"]["method_parameters"]
         )
 
         attacks = [
@@ -76,18 +66,54 @@ class AttackMetadata:
 
 
 @dataclass
-class DefenseMetadata:
-    """Metadata for defense methods"""
+class DefenseDatasetResult:
+    index: int
+    dataset: str
+    total_sequences: int
+    average_queries: float
+    original_accuracy: float
+    accuracy_after_attack: float
+    defense_success_rate: float
 
+
+@dataclass
+class DefenseMetadata:
     method: str
-    model_name: str
-    attack_method: str
-    description: str
-    date_created: str = field(
-        default_factory=lambda: datetime.datetime.now().isoformat()
-    )
-    dsr: float = 0.0
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    model: str
+    attack_type: str
+    defense: str
+    total_sequences: int
+    evaluation_date: str
+    method_parameters: Dict[str, Any]
+    overall_defense_success_rate: float
+    results_by_dataset: List[DefenseDatasetResult]
+
+    @staticmethod
+    def from_json(data: Dict) -> "DefenseMetadata":
+        params = data["parameters"]
+        dataset_results = [
+            DefenseDatasetResult(
+                index=entry["index"],
+                dataset=entry["datasets"],
+                total_sequences=entry["total_number_of_sequences"],
+                average_queries=entry["average_queries"],
+                original_accuracy=entry["origin_acc"],
+                accuracy_after_attack=entry["after_attack_acc"],
+                defense_success_rate=entry["dsr"]
+            )
+            for entry in data["adversarial_defense"]
+        ]
+        return DefenseMetadata(
+            method=params["method"],
+            model=params["model"],
+            attack_type=params["attack_type"],
+            defense=params["defense"],
+            total_sequences=params["total_number_of_sequences"],
+            evaluation_date=params["evaluation_date"],
+            method_parameters=params["method_parameters"],
+            overall_defense_success_rate=params["defense_success_rate"],
+            results_by_dataset=dataset_results,
+        )
 
 
 @dataclass
@@ -205,7 +231,7 @@ class GenoArmory:
         self._defense_artifacts: Dict[str, DefenseArtifact] = {}
 
     @classmethod
-    def from_pretrained(model_path: str, device: Optional[str] = None, num_labels: int = 2):
+    def from_pretrained(cls, model_path: str, device: Optional[str] = None, num_labels: int = 2):
         """Load GenoArmory from a pretrained model"""
         if 'bert' in model_path:
             config = BertConfig.from_pretrained(model_path, num_labels=num_labels)
@@ -213,7 +239,7 @@ class GenoArmory:
             config = AutoConfig.from_pretrained(model_path, num_labels=num_labels)
         model = AutoModelForSequenceClassification.from_pretrained(model_path, config=config, trust_remote_code=True)
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        return (
+        return cls(
             model,
             tokenizer,
             device=device or ("cuda" if torch.cuda.is_available() else "cpu"),
@@ -247,20 +273,12 @@ class GenoArmory:
         self, method: str, model_name: str
     ) -> Optional[AttackMetadata]:
         """Get metadata for a specific attack method and model, loading from disk if available."""
-        metadata_path = f"/projects/p32013/DNABERT-meta/metadata/{method}/{model_name}.json"
+        metadata_path = f"./metadata/{method}/{model_name}.json"
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 data = json.load(f)
             # Convert loaded dict to AttackMetadata (handles missing fields with defaults)
-            return AttackMetadata(
-                method=data.get("method", method),
-                model_name=data.get("model_name", model_name),
-                description=data.get("description", ""),
-                date_created=data.get("date_created", ""),
-                asr=data.get("asr", 0.0),
-                average_queries=data.get("average_queries", 0.0),
-                parameters=data.get("parameters", {}),
-            )
+            return AttackMetadata.from_json(data)
         else:
             return None
 
@@ -269,11 +287,11 @@ class GenoArmory:
         self, method: str, model_name: str, attack_method: str
     ) -> Optional[DefenseMetadata]:
         """Get metadata for a specific defense method and model"""
-        metadata_path = f"/projects/p32013/DNABERT-meta/metadata/{method}/{model_name}-{attack_method}.json"
+        metadata_path = f"./metadata/{method}/{model_name}-{attack_method}.json"
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 data = json.load(f)
-            return DefenseMetadata(**data)
+            return DefenseMetadata.from_json(data)
         else:
             return None
 
@@ -562,15 +580,19 @@ class GenoArmory:
         eval_batch_size = kwargs.get('eval_batch_size', 2)
         num_train_epochs = kwargs.get('num_train_epochs', 5)
         learning_rate = kwargs.get('learning_rate', 3e-5)
+        attack_methods = kwargs.get('attack_methods', ['bertattack', 'textfooler', 'pgd'])
+        output_base_dir = kwargs.get('output_base_dir', 'test/PGD')
+        output_dir = kwargs.get('output_dir', 'test/ADFAR')
 
         results = {}
         for task in tasks:
             dataset_path = os.path.join(base_dir, task, 'cat.csv')
             target_model_path = kwargs["target_model_path"]
+            tokenizer_base_dir = kwargs["tokenizer_path"]
 
             # 1.2 Use TextFooler as the attack method to produce adversarial examples:
             command3 = [
-                'python', 'attack_classification_simplified.py',
+                'python', adfar_src_dir + '/attack_classification_simplified.py',
                 '--dataset_path', dataset_path,
                 '--target_model', model_type,
                 '--target_model_path', target_model_path,
@@ -580,11 +602,11 @@ class GenoArmory:
                 '--counter_fitting_cos_sim_path', f'{textfooler_dir}/cos_sim_counter_fitting/cos_sim_counter_fitting_{model_type}.npy',
                 '--USE_cache_path', f'{textfooler_dir}/tf_cache',
                 '--nclasses', str(num_classes),
-                '--output_dir', f'{adv_results_dir}/{mdoel_type}/{task}'
+                '--output_dir', f'{adv_results_dir}/{model_type}/{task}'
             ]
 
             command4 = [
-                'python', 'get_pure_adversaries.py',
+                'python', adfar_src_dir + '/get_pure_adversaries.py',
                 '--adversaries_path', f'{adv_results_dir}/{model_type}/{task}/adversaries.txt',
                 '--output_path', f'{base_dir}/{task}/{model_type}/attacked_data',
                 '--times', '1',
@@ -594,7 +616,7 @@ class GenoArmory:
             ]
 
             command5 = [
-                'python', 'combine_data.py',
+                'python', adfar_src_dir + '/combine_data.py',
                 '--add_file', f'{base_dir}/{task}/{model_type}/attacked_data/pure_adversaries.tsv',
                 '--change_label', '2',
                 '--original_dataset', f'{base_dir}/{task}',
@@ -603,7 +625,7 @@ class GenoArmory:
             ]
 
             command6 = [
-                'python', 'run_simplification.py',
+                'python', adfar_src_dir + '/run_simplification.py',
                 '--complex_threshold', '3000',
                 '--ratio', '0.25',
                 '--syn_num', '20',
@@ -617,7 +639,7 @@ class GenoArmory:
             ]
 
             command7 = [
-                'python', 'combine_data.py',
+                'python', adfar_src_dir + '/combine_data.py',
                 '--add_file', f'{base_dir}/{task}/{model_type}/simplified_data/2times_adv_0-3/train.tsv',
                 '--change_label', '4',
                 '--original_dataset', f'{base_dir}/{task}/{model_type}/combined_data/2times_adv_0-3/',
@@ -626,8 +648,8 @@ class GenoArmory:
             ]
 
             command8 = [
-                'python', 'run_classification_adv.py',
-                '--task_name', dataset_dir,
+                'python', adfar_src_dir + '/run_classification_adv.py',
+                '--task_name', task,
                 '--max_seq_len', '128',
                 '--do_train',
                 '--do_eval',
@@ -648,7 +670,6 @@ class GenoArmory:
             ]
 
             # Run all commands in order, in the ADFAR/src directory
-            os.chdir(adfar_src_dir)
             for idx, cmd in enumerate([command3, command4, command5, command6, command7, command8], start=3):
                 print(f"[ADFAR] Running command{idx}: {' '.join(cmd)}")
                 subprocess.run(cmd, check=True)
@@ -658,7 +679,7 @@ class GenoArmory:
                 print(f"Running bertattack on FreeLB-trained model for task: {task}")
                 run_bertattack_attack_script(
                     data_path=kwargs["data_path"],
-                    mlm_path=kwargs["mlm_path"],
+                    mlm_path=f'{experiments_dir}/{task}/{model_type}/4times_adv_double_0-7',
                     tgt_path=kwargs["tgt_path"],
                     model=kwargs["attack_model_type"],
                     output_dir=kwargs["output_dir"],
@@ -672,10 +693,10 @@ class GenoArmory:
             if "textfooler" in attack_methods:
                 print(f"Running textfooler on FreeLB-trained model for task: {task}")
                 run_textfooler_attack_script(
-                    base_dir=kwargs["gue_dir"],
-                    tasks=kwargs["tasks"],
+                    base_dir=kwargs["base_dir"],
+                    tasks=[task],
                     target_model=kwargs["attack_model_type"],
-                    target_model_path=kwargs["target_model_path"],
+                    target_model_path=f'{experiments_dir}/{task}/{model_type}/4times_adv_double_0-7',
                     num_label=kwargs["num_label"],
                     output_dir_base=kwargs["output_dir_base"],
                     attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
@@ -684,26 +705,26 @@ class GenoArmory:
                 print(f"Running pgd on FreeLB-trained model for task: {task}")
                 model_type = None
                     
-                if any(key in model for key in ['dnabert', 'dnabert-2']):
+                if any(key in model_type for key in ['dnabert', 'dnabert-2']):
                     model_type = 'bert'
-                elif any(key in model for key in ['hyenadna']):
+                elif any(key in model_type for key in ['hyenadna']):
                     model_type = 'hyena'
-                elif any(key in model for key in ['genomeocean', 'og']):
+                elif any(key in model_type for key in ['genomeocean', 'og']):
                     model_type = 'og'
-                elif any(key in model for key in ['nt1']):
+                elif any(key in model_type for key in ['nt1']):
                     model_type = 'nt1'
-                elif any(key in model for key in ['nt2']):
+                elif any(key in model_type for key in ['nt2']):
                     model_type = 'nt2'
 
                 run_pgd_attack_script(
-                    tasks=kwargs["tasks"],
+                    tasks=[task],
                     model=kwargs["model"],
-                    data_base_dir=kwargs["gue_dir"],
-                    model_base_dir=output_dir,
+                    data_base_dir=kwargs["base_dir"],
+                    model_base_dir=f'{experiments_dir}/{task}/{model_type}/4times_adv_double_0-7',
                     output_base_dir=os.path.join(output_base_dir, "PGD"),
-                    tokenizer_base_dir=output_dir,
+                    tokenizer_base_dir=tokenizer_base_dir,
                     model_type=model_type,
-                    test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
+                    test_script_path=kwargs.get("test_script_path", "./PGD/pgd.py"),
                     task_name=kwargs.get("task_name", "0"),
                     num_label=kwargs.get("num_label", "2"),
                     n_gpu=kwargs.get("n_gpu", "1"),
@@ -765,9 +786,9 @@ class GenoArmory:
             model_type = model
             expname = f"{model_type}_{task}"
             if model_type == "hyena":
-                script = script_glue_freelb3
+                script = "./FreeLB/huggingface-transformers/examples/run_glue_freelb3.py"
             else:
-                script = script_glue_freelb2
+                script = "./FreeLB/huggingface-transformers/examples/run_glue_freelb2.py"
             output_dir = os.path.join(ckpt_dir, expname)
             data_dir = os.path.join(gue_dir, task)
             log_file = os.path.join(log_dir, f"{expname}.log")
@@ -808,8 +829,14 @@ class GenoArmory:
                 "--overwrite_cache"
             ]
             print(f"Running FreeLB for task: {task}")
-            with open(log_file, "w") as lf:
-                subprocess.run(command, check=True, stdout=lf, stderr=lf)
+            with open(log_file, "w+") as lf:
+                try:
+                    subprocess.run(command, check=True, stdout=lf, stderr=lf)
+                except subprocess.CalledProcessError as e:
+                    lf.seek(0)
+                    print("=== Error log ===")
+                    print(lf.read())
+                    raise
             print(f"---\n{task} FreeLB finish\n---")
 
             # After training, run only the specified attacks for this task/model
@@ -817,10 +844,10 @@ class GenoArmory:
                 print(f"Running bertattack on FreeLB-trained model for task: {task}")
                 run_bertattack_attack_script(
                     data_path=kwargs["data_path"],
-                    mlm_path=kwargs["mlm_path"],
+                    mlm_path=output_dir,
                     tgt_path=kwargs["tgt_path"],
                     model=kwargs["attack_model_type"],
-                    output_dir=kwargs["output_dir"],
+                    output_dir=output_dir,
                     num_label=kwargs["num_label"],
                     k=kwargs["k"],
                     threshold_pred_score=kwargs["threshold_pred_score"],
@@ -831,10 +858,10 @@ class GenoArmory:
             if "textfooler" in attack_methods:
                 print(f"Running textfooler on FreeLB-trained model for task: {task}")
                 run_textfooler_attack_script(
-                    base_dir=kwargs["gue_dir"],
-                    tasks=kwargs["tasks"],
+                    base_dir=kwargs["base_dir"],
+                    tasks=[task],
                     target_model=kwargs["attack_model_type"],
-                    target_model_path=kwargs["target_model_path"],
+                    target_model_path=output_dir,
                     num_label=kwargs["num_label"],
                     output_dir_base=kwargs["output_dir_base"],
                     attack_script_path=kwargs.get("attack_script_path", "TextFooler/attack_classification_general.py")
@@ -855,13 +882,13 @@ class GenoArmory:
                     model_type = 'nt2'
 
                 run_pgd_attack_script(
-                    tasks=kwargs["tasks"],
+                    tasks=[task],
                     model=kwargs["model"],
-                    data_base_dir=kwargs["gue_dir"],
+                    data_base_dir=kwargs["base_dir"],
                     model_base_dir=output_dir,
-                    output_base_dir=os.path.join(output_base_dir, "PGD"),
-                    tokenizer_base_dir=output_dir,
-                    model_type=model_type,
+                    output_base_dir=os.path.join(output_dir_base, "PGD"),
+                    tokenizer_base_dir=kwargs["tokenizer_path"],
+                    model_type=kwargs.get("attack_model_type", "dnabert"),
                     test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
                     task_name=kwargs.get("task_name", "0"),
                     num_label=kwargs.get("num_label", "2"),
@@ -881,16 +908,15 @@ class GenoArmory:
             - tasks: list of task names
             - model: model name or huggingface path
             - attack_methods: list of attack names to run (e.g., ['bertattack', 'pgd'])
-            - project_root: path to AT project root
             - data_dir_base: base path to the GUE dataset
             - output_dir_base: base path to save trained models
             - other training parameters: learning_rate, batch_size, epochs, etc.
         """
 
         tasks = kwargs["tasks"]
+        attack_methods = kwargs["attack_methods"]
         model = kwargs.get("model", "zhihan1996/DNABERT-2-117M")
         data_dir_base = kwargs.get("data_dir_base", "./GUE")
-        project_root = kwargs.get("project_root", "./AT")
         output_dir_base = kwargs.get("output_dir_base", "./test/AT")
 
         # Hyperparameters
@@ -914,7 +940,6 @@ class GenoArmory:
 
         # Change to project directory
         os.makedirs(output_dir_base, exist_ok=True)
-        os.chdir(project_root)
 
         for task in tasks:
             print(f"Running AT training for task: {task}")
@@ -924,7 +949,7 @@ class GenoArmory:
             run_name = f"AT_{model}_{task}"
 
             command = [
-                "python", "train.py",
+                "python", "./AT/train.py",
                 "--model_name_or_path", model,
                 "--data_path", data_path,
                 "--kmer", kmer,
@@ -936,6 +961,7 @@ class GenoArmory:
                 "--learning_rate", learning_rate,
                 "--num_train_epochs", epochs,
                 "--fp16",
+                "--save_strategy", "steps",
                 "--save_steps", save_steps,
                 "--output_dir", output_dir,
                 "--evaluation_strategy", "steps",
@@ -945,7 +971,7 @@ class GenoArmory:
                 "--overwrite_output_dir", "True",
                 "--log_level", "info",
                 "--find_unused_parameters", "False",
-                "--save_model", "False"
+                "--save_model", "True"
             ]
 
             # Execute and log output
@@ -1003,7 +1029,7 @@ class GenoArmory:
                     model=kwargs["model"],
                     data_base_dir=kwargs["gue_dir"],
                     model_base_dir=output_dir,
-                    output_base_dir=os.path.join(output_base_dir, "PGD"),
+                    output_base_dir=os.path.join(output_dir_base, "PGD"),
                     tokenizer_base_dir=output_dir,
                     model_type=model_type,
                     test_script_path=kwargs.get("test_script_path", "PGD/test.py"),
@@ -1180,8 +1206,8 @@ def main():
     read_parser = subparsers.add_parser("read", help="Read attack or defense artifacts")
     read_parser.add_argument("--type", choices=["attack", "defense"], required=True)
     read_parser.add_argument("--method", required=True, help="Method name")
-    read_parser.add_argument("--model", required=True, help="Model name")
-    read_parser.add_argument("--index", type=int, help="Artifact index (optional)")
+    read_parser.add_argument("--model_name", required=True, help="Model name")
+    read_parser.add_argument("--attack_method", type=str,)
     read_parser.add_argument(
         "--metadata", action="store_true", help="Show metadata only"
     )
@@ -1221,7 +1247,7 @@ def main():
 
     # Defense command
     defense_parser = subparsers.add_parser("defense", help="Apply a defense")
-    defense_parser.add_argument("--method", required=True, choices=["adfar", "freelb"])
+    defense_parser.add_argument("--method", required=True, choices=["adfar", "freelb", "at"])
     defense_parser.add_argument(
         "--params", type=str, help="Additional parameters in JSON format"
     )
@@ -1318,8 +1344,17 @@ def main():
         result = armory.defense(
             defense_method=args.method, **kwargs
         )
-
-
+    elif args.command == "read":
+        if args.type=='attack':
+            result = armory.get_attack_metadata(
+                method=args.method, model_name=args.model_name
+            )
+            print(result)
+        elif args.type == "defense":
+            result = armory.get_defense_metadata(
+                method=args.method, attack_method=args.attack_method, model_name=args.model_name
+            )
+            print(result)
     else:
         raise RuntimeError("The commend is not support")
 

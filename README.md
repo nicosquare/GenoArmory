@@ -64,10 +64,15 @@ GenoArmory can also be used from the command line:
 python GenoArmory.py --model_path magicslabnu/GERM attack --method pgd --params_file /projects/p32013/DNABERT-meta/scripts/PGD/pgd_dnabert.json
 
 # Defense
-genoarmory defend --sequence "ATCGGTCA" --method adfar
+python GenoArmory.py --model_path magicslabnu/GERM defense --method at --params_file /projects/p32013/DNABERT-meta/scripts/AT/at_pgd_dnabert.json
 
 # Visualization
 python GenoArmory.py --model_path magicslabnu/GERM visualize --folder_path /projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test --save_path /projects/p32013/DNABERT-meta/BERT-Attack/results/meta/test/frequency.pdf
+
+
+# Read MetaData
+# python GenoArmory.py --model_path magicslabnu/GERM read --type attack --method TextFooler --model_name dnabert
+
 ```
 
 ## Features

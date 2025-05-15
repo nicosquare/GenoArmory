@@ -1,0 +1,30 @@
+{
+  "tasks": [
+    "H3"
+  ],
+  "model": "dnabert",
+  "model_type": "dnabert",
+  "base_dir": "./GUE",
+  "textfooler_dir": "./TextFooler",
+  "adv_results_dir": "adv_results",
+  "adfar_src_dir": "./ADFAR/src",
+  "experiments_dir": "./ADFAR/experiments/GUE",
+  "datasize": 9662,
+  "num_classes": 2,
+  "batch_size": 32,
+  "max_seq_length": 256,
+  "train_batch_size": 2,
+  "eval_batch_size": 2,
+  "num_train_epochs": 5,
+  "learning_rate": 3e-5,
+  "attack_methods": "pgd",
+  "target_model_path": "magicslabnu/DNABERT-2-finetuned-H3",
+  "tokenizer_path": "zhihan1996/DNABERT-2-117M",
+  "output_base_dir": "test/PGD",
+  "task_name": "0",
+  "num_label": 2,
+  "n_gpu": 1,
+  "max_seq_length": 256,
+  "batch_size": 16,
+  "test_script_path": "./PGD/pgd.py"
+}

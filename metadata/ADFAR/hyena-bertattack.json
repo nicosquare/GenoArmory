@@ -1,10 +1,9 @@
 {
   "parameters": {
-    "method": "BERTAttack",
+    "method": "ADFAR-BERTAttack",
     "model": "LongSafari/hyenadna-small-32k-seqlen-hf",
     "attack_type": "sample_based",
-    "defense": null,
-    "attack_success_rate": 0.9975,
+    "defense": "ADFAR",
     "total_number_of_sequences": 1000000,
     "evaluation_date": "2025-03-18",
     "method_parameters": {
@@ -14,242 +13,243 @@
       "threshold_pred_score": 0,
       "start": 0,
       "end": 100
-    }
+    },
+    "defense_success_rate": 0.015000000000000013
   },
-  "adversarial_attacks": [
+  "adversarial_defense": [
     {
       "index": 0,
       "datasets": "mouse_0",
       "total_number_of_sequences": 7288,
-      "asr": 1.0,
-      "average_queries": 85.13,
-      "origin_acc": 0.4975,
-      "after_attack_acc": 0.0
+      "average_queries": 1863.45,
+      "origin_acc": 0.54,
+      "after_attack_acc": 0.2,
+      "dsr": 0.37040000000000006
     },
     {
       "index": 1,
       "datasets": "mouse_1",
       "total_number_of_sequences": 60697,
-      "asr": 0.9997,
-      "average_queries": 256.4348,
-      "origin_acc": 0.5152,
-      "after_attack_acc": 0.0002
+      "average_queries": 145.02,
+      "origin_acc": 0.52,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 2,
       "datasets": "mouse_2",
       "total_number_of_sequences": 2948,
-      "asr": 1.0,
-      "average_queries": 146.52,
-      "origin_acc": 0.49,
-      "after_attack_acc": 0.0
+      "average_queries": 364.02,
+      "origin_acc": 0.46,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 3,
       "datasets": "mouse_3",
       "total_number_of_sequences": 2143,
-      "asr": 1.0,
-      "average_queries": 234.3029,
-      "origin_acc": 0.5029,
-      "after_attack_acc": 0.0
+      "average_queries": 145.75,
+      "origin_acc": 0.46,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 4,
       "datasets": "mouse_4",
       "total_number_of_sequences": 16947,
-      "asr": 0.9879,
-      "average_queries": 1217.12,
-      "origin_acc": 0.5044,
-      "after_attack_acc": 0.0061
+      "average_queries": 111.16,
+      "origin_acc": 0.53,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 5,
       "datasets": "H3",
       "total_number_of_sequences": 13468,
-      "asr": 1.0,
-      "average_queries": 435.4036,
-      "origin_acc": 0.5093,
-      "after_attack_acc": 0.0
+      "average_queries": 788.27,
+      "origin_acc": 0.47,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 6,
       "datasets": "H3K14ac",
       "total_number_of_sequences": 29743,
-      "asr": 1.0,
-      "average_queries": 432.0017,
-      "origin_acc": 0.5377,
-      "after_attack_acc": 0.0
+      "average_queries": 265.91,
+      "origin_acc": 0.52,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 7,
       "datasets": "H3K36me3",
       "total_number_of_sequences": 31392,
-      "asr": 1.0,
-      "average_queries": 353.395,
-      "origin_acc": 0.5082,
-      "after_attack_acc": 0.0
+      "average_queries": 210.77,
+      "origin_acc": 0.39,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 8,
       "datasets": "H3K4me1",
       "total_number_of_sequences": 28509,
-      "asr": 0.9906,
-      "average_queries": 960.4928,
-      "origin_acc": 0.4424,
-      "after_attack_acc": 0.0041
+      "average_queries": 273.8,
+      "origin_acc": 0.54,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 9,
       "datasets": "H3K4me2",
       "total_number_of_sequences": 27614,
-      "asr": 1.0,
-      "average_queries": 562.6664,
-      "origin_acc": 0.5311,
-      "after_attack_acc": 0.0
+      "average_queries": 319.28,
+      "origin_acc": 0.58,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 10,
       "datasets": "H3K4me3",
       "total_number_of_sequences": 33119,
-      "asr": 1.0,
-      "average_queries": 2378.0688,
-      "origin_acc": 0.5529,
-      "after_attack_acc": 0.0
+      "average_queries": 434.45,
+      "origin_acc": 0.49,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 11,
       "datasets": "H3K79me3",
       "total_number_of_sequences": 25953,
-      "asr": 1.0,
-      "average_queries": 261.2431,
-      "origin_acc": 0.5073,
-      "after_attack_acc": 0.0
+      "average_queries": 275.41,
+      "origin_acc": 0.54,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 12,
       "datasets": "H3K9ac",
       "total_number_of_sequences": 25003,
-      "asr": 1.0,
-      "average_queries": 235.642,
-      "origin_acc": 0.4636,
-      "after_attack_acc": 0.0
+      "average_queries": 264.47,
+      "origin_acc": 0.51,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 13,
       "datasets": "H4",
       "total_number_of_sequences": 13140,
-      "asr": 1.0,
-      "average_queries": 878.24,
-      "origin_acc": 0.4579,
-      "after_attack_acc": 0.0
+      "average_queries": 286.99,
+      "origin_acc": 0.57,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 14,
       "datasets": "H4ac",
       "total_number_of_sequences": 30685,
-      "asr": 1.0,
-      "average_queries": 328.3187,
-      "origin_acc": 0.4916,
-      "after_attack_acc": 0.0
+      "average_queries": 904.52,
+      "origin_acc": 0.44,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 15,
       "datasets": "prom_300_all",
       "total_number_of_sequences": 53276,
-      "asr": 1.0,
-      "average_queries": 298.8443,
-      "origin_acc": 0.5392,
-      "after_attack_acc": 0.0
+      "average_queries": 172.82,
+      "origin_acc": 0.53,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 16,
       "datasets": "prom_300_notata",
       "total_number_of_sequences": 47759,
-      "asr": 0.9706,
-      "average_queries": 2581.5223,
-      "origin_acc": 0.5179,
-      "after_attack_acc": 0.0152
+      "average_queries": 125.45,
+      "origin_acc": 0.38,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 17,
       "datasets": "prom_300_tata",
       "total_number_of_sequences": 5517,
-      "asr": 1.0,
-      "average_queries": 392.8217,
-      "origin_acc": 0.525,
-      "after_attack_acc": 0.0
+      "average_queries": 184.16,
+      "origin_acc": 0.49,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 18,
       "datasets": "prom_core_all",
       "total_number_of_sequences": 53276,
-      "asr": 1.0,
-      "average_queries": 328.0439,
-      "origin_acc": 0.5504,
-      "after_attack_acc": 0.0
+      "average_queries": 227.54,
+      "origin_acc": 0.54,
+      "after_attack_acc": 0.01,
+      "dsr": 0.01849999999999996
     },
     {
       "index": 19,
       "datasets": "prom_core_notata",
       "total_number_of_sequences": 47759,
-      "asr": 1.0,
-      "average_queries": 222.0402,
-      "origin_acc": 0.5027,
-      "after_attack_acc": 0.0
+      "average_queries": 73.08,
+      "origin_acc": 0.44,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 20,
       "datasets": "prom_core_tata",
       "total_number_of_sequences": 5517,
-      "asr": 1.0,
-      "average_queries": 353.375,
-      "origin_acc": 0.565,
-      "after_attack_acc": 0.0
+      "average_queries": 389.52,
+      "origin_acc": 0.49,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 21,
       "datasets": "tf_0",
       "total_number_of_sequences": 33378,
-      "asr": 1.0,
-      "average_queries": 94.4091,
-      "origin_acc": 0.4975,
-      "after_attack_acc": 0.0
+      "average_queries": 100.06,
+      "origin_acc": 0.54,
+      "after_attack_acc": 0.2,
+      "dsr": 0.0
     },
     {
       "index": 22,
       "datasets": "tf_1",
       "total_number_of_sequences": 31672,
-      "asr": 0.9988,
-      "average_queries": 520.7834,
-      "origin_acc": 0.5152,
-      "after_attack_acc": 0.0002
+      "average_queries": 449.68,
+      "origin_acc": 0.52,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 23,
       "datasets": "tf_2",
       "total_number_of_sequences": 20000,
-      "asr": 1.0,
-      "average_queries": 161.9305,
-      "origin_acc": 0.49,
-      "after_attack_acc": 0.0
+      "average_queries": 127.45,
+      "origin_acc": 0.46,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 24,
       "datasets": "tf_3",
       "total_number_of_sequences": 28294,
-      "asr": 1.0,
-      "average_queries": 316.0745,
-      "origin_acc": 0.5029,
-      "after_attack_acc": 0.0
+      "average_queries": 114.23,
+      "origin_acc": 0.46,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     },
     {
       "index": 25,
       "datasets": "tf_4",
       "total_number_of_sequences": 20000,
-      "asr": 0.9881,
-      "average_queries": 1195.8455,
-      "origin_acc": 0.5044,
-      "after_attack_acc": 0.0061
+      "average_queries": 186.74,
+      "origin_acc": 0.53,
+      "after_attack_acc": 0.0,
+      "dsr": 0.0
     }
   ]
 }

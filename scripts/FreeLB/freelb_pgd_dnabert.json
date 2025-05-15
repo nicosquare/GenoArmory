@@ -30,5 +30,6 @@
   "project_root": "./FreeLB/huggingface-transformers",
   "log_dir": "./logs",
   "ckpt_dir": "./checkpoints",
-  "gue_dir": "./GUE"
+  "gue_dir": "./GUE",
+  "test_script_path": "PGD/pgd.py"
 }
