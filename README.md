@@ -115,5 +115,13 @@ If you have any question regarding our paper or codes, please feel free to start
 If you use GenoArmory in your work, please kindly cite our paper:
 
 ```
-
+@misc{luo2025genoarmoryunifiedevaluationframework,
+      title={GenoArmory: A Unified Evaluation Framework for Adversarial Attacks on Genomic Foundation Models}, 
+      author={Haozheng Luo and Chenghao Qiu and Yimin Wang and Shang Wu and Jiahao Yu and Han Liu and Binghui Wang and Yan Chen},
+      year={2025},
+      eprint={2505.10983},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2505.10983}, 
+}
 ```
