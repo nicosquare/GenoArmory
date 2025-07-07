@@ -12,8 +12,8 @@ import argparse
 import torch
 import random
 
-from robustness.datasets import DNA
-from robustness.model_utils import make_and_restore_model
+from genoarmory.PGD.robustness.datasets import DNA
+from genoarmory.PGD.robustness.model_utils import make_and_restore_model
 
 ATTACK_EPS = 0.5
 ATTACK_STEPSIZE = 0.1

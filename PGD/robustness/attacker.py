@@ -182,7 +182,7 @@ class Attacker(ch.nn.Module):
                     inp["inputs_embeds"] = self.normalize(inp["inputs_embeds"].to(self.model.device))
                                 
                 output = self.model(**inp) 
-
+                
                 if custom_loss:
                     return custom_loss(self.model, inp, target)
 
